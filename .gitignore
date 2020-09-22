@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+# Misc
+docker.txt
+test*
