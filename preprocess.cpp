@@ -94,12 +94,6 @@ asm_line Preprocesser::break_line(string line, int number) {
             [](unsigned char c) { return toupper(c); }
         );
 
-        // Denuncia tokens inválidos
-        if (regex_search(token, regex("[^A-Z0-9_:,]"))) {
-            string error = "Token '" + token + "' é inválido";
-            throw error;
-        }
-
         // cout << '[' << token << ']' << endl;
         
         // Caso seja um rótulo
@@ -110,13 +104,18 @@ asm_line Preprocesser::break_line(string line, int number) {
                 throw error;
             }
 
-            // Não pode começar com número
-            if (regex_match(token.substr(0, 1), regex("[^A-Z_]"))) {
-                string error = "Rótulo '" + token + "' é inválido";
+            // Tira os 2 pontos
+            token.pop_back();
+
+            // Denuncia tokens inválidos
+            if (
+                regex_search(token, regex("[^A-Z0-9_]")) ||
+                regex_match(token.substr(0, 1), regex("[^A-Z_]"))
+            ) {
+                string error = "Token '" + token + "' é inválido";
                 throw error;
             }
 
-            token.pop_back();
             line_tokens.label = token;
             label_ok = true;
             continue;
@@ -125,6 +124,15 @@ asm_line Preprocesser::break_line(string line, int number) {
 
         // Se ainda não tiver encontrado uma operação
         if (!operation_ok) {
+            // Denuncia tokens inválidos
+            if (
+                regex_search(token, regex("[^A-Z0-9_]")) ||
+                regex_match(token.substr(0, 1), regex("[^A-Z_]"))
+            ) {
+                string error = "Operação '" + token + "' é inválida";
+                throw error;
+            }
+
             line_tokens.operation = token;
             operation_ok = true;
             continue;
@@ -132,14 +140,19 @@ asm_line Preprocesser::break_line(string line, int number) {
 
         // Se ainda não tiver encontrado o operando 1
         if (!operand1_ok) {
-            operand1_ok = true;
-
             // Verifica se o operando veio com uma vírgula ao final
             if (token[token.length() - 1] == ',') {
                 comma_ok = true;
                 token.pop_back();
             }
 
+            // Denuncia tokens inválidos
+            if (regex_search(token, regex("[^A-Z0-9_]"))) {
+                string error = "Operando '" + token + "' é inválido";
+                throw error;
+            }
+
+            operand1_ok = true;
             line_tokens.operand[0] = token;
             continue;
         }
@@ -153,7 +166,15 @@ asm_line Preprocesser::break_line(string line, int number) {
             // Se o operando já vier com a vírgula, tudo pronto
             if (token.length() > 1) {
                 operand2_ok = true;
-                line_tokens.operand[1] = token.substr(1);
+                token = token.substr(1);
+
+                // Denuncia tokens inválidos
+                if (regex_search(token, regex("[^A-Z0-9_]"))) {
+                    string error = "Operando '" + token + "' é inválido";
+                    throw error;
+                }
+                
+                line_tokens.operand[1] = token;
                 break;
             }
             continue;
@@ -166,6 +187,11 @@ asm_line Preprocesser::break_line(string line, int number) {
         }
 
         // É o último operando: adicionamos ele e finalizamos
+        // Denuncia tokens inválidos
+        if (regex_search(token, regex("[^A-Z0-9_]"))) {
+            string error = "Operando '" + token + "' é inválido";
+            throw error;
+        }
         line_tokens.operand[1] = token;
         operand2_ok = true;
         break;
@@ -182,13 +208,46 @@ void Preprocesser::populate_lines () {
     string line;
     // Posiciona o ponteiro no início da stream
     source.seekg(0);
+    // Armazena um rótulo que vieram em linhas anteriores à sua operação
+    string stray_label;
     int i = 1;
     while (getline(source, line)) {
         // Remove o /r da linha
         // line.pop_back();
         // cout << "Line: <" << line << ">" << endl;
+        i++;
         if (line.empty()) continue;
-        program_lines.push_back(break_line(line, i++));
+        
+        // Separa a linha em elementos
+        asm_line broken_line = break_line(line, i-1);
+
+        // Se for uma linha completa, já registramos
+        if (broken_line.operation != "") {
+            // Verificamos se há um rótulo declarado anteriormente para essa operação
+            if (stray_label != "") {
+                // Garantimos que não haja outro rótulo nessa mesma linha
+                if (broken_line.label != "") {
+                    string error = "Rótulo \"" + broken_line.label + "\" conflita com o rótulo declarado anteriormente \"" + stray_label + "\"";
+                    throw error;
+                }
+
+                broken_line.label = stray_label;
+                // Limpamos o cache de rótulo
+                stray_label = "";
+            }
+            // Registra essa linha de código
+            program_lines.push_back(broken_line);
+        }
+        
+        // Se a linha só tiver um rótulo, aplicamos ele na linha seguinte
+        else if (broken_line.label != "") {
+            // Se já tiver um rótulo armazenado, levanta um erro
+            if (stray_label != "") {
+                string error = "Rótulo \"" + broken_line.label + "\" conflita com o rótulo declarado anteriormente \"" + stray_label + "\"";
+                throw error;
+            }
+            stray_label = broken_line.label;
+        }
     }
 }
 
