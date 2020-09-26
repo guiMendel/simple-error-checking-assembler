@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string>
 #include <iostream>
 #include <sstream>
@@ -5,6 +6,7 @@
 #include <algorithm>
 #include "../include/scanner.hpp"
 #include "../include/preprocesser.hpp"
+#include "../include/mounter_exception.hpp"
 
 using namespace std;
 
@@ -18,13 +20,16 @@ Preprocesser::Preprocesser() {
 int Preprocesser::resolve_synonym(string synonym) {
     const auto synonym_entry = synonym_table.find(synonym);
     if (synonym_entry == synonym_table.end()) {
-        string error = "Rótulo \"" + synonym + "\" não foi atribuído por um EQU antes de ser utilizado por diretiva de pré-processamento.\nAtribuições:\n";
         string att = "";
         for(auto it = synonym_table.cbegin(); it != synonym_table.cend(); ++it) {
             att += it->first + ": " + to_string(it->second) + "\n";
         }
-        att = (att == "" ? "Nenhuma registrada" : att.substr(0, att.length()));
-        throw error + att;
+        att = (att == "" ? "Nenhuma registrada" : att.substr(0, att.length()-1));
+        
+        const MounterException error (-1, "semântico",
+            "Rótulo \"" + synonym + "\" não foi atribuído por um EQU antes de ser utilizado por diretiva de pré-processamento.\nAtribuições:\n" + att
+        );
+        throw error;
     }
     return synonym_entry->second;
 }
@@ -84,20 +89,46 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
     fstream pre(pre_path, fstream::out);
 
     if (!pre.is_open()) {
-        const string error = "Não foi possível criar o arquivo \"" + pre_path + "\"";
+        const MounterException error(-1, "null",
+            "Não foi possível criar o arquivo \"" + pre_path + "\""
+        );
         throw error;
     }
 
+    // Coleta os erros lançados
+    string error_log = "";
+    // Coleta as linhas resultantes
+    string output_lines = "";
+
     // Passa por cada linha
     for (auto line_iterator = lines.begin(); line_iterator != lines.end(); line_iterator++) {
-        process_line(line_iterator, pre);
+        try {
+            output_lines += process_line(line_iterator) + "\n";
+        }
+        catch (MounterException error) {
+            // Coleta informações sobre o erro
+            const int line = (error.get_line() == -1 ? line_iterator->number : error.get_line());
+
+            error_log += "Na linha " + to_string(line) + ", erro " + error.get_type() + ": " + error.what() + "\n\n";
+        }
     }
 
-    pre.close();
+    // Finaliza o arquivo ou imprime os erros
+    if (error_log == "") {
+        pre << output_lines;
+        pre.close();
+    }
+    else {
+        cerr << "ERRO:\n" << error_log.substr(0, error_log.length()-2);
+        pre.close();
+        // Deleta o arquivo vazio
+        remove(pre_path.c_str());
+    }
+    
     synonym_table.clear();
 }
 
-void Preprocesser::process_line(vector<asm_line>::iterator &line_iterator, fstream &output_file) {
+string Preprocesser::process_line(vector<asm_line>::iterator &line_iterator) {
     const asm_line line = *line_iterator;
 
     // cout << "Tabela de sinônimos:\n";
@@ -113,7 +144,7 @@ void Preprocesser::process_line(vector<asm_line>::iterator &line_iterator, fstre
         auto eval_routine = directive_entry->second;
         eval_routine(line_iterator, this);
         // A diretiva não vai para o programa final
-        return;
+        return "";
     }
     
     // Imprime a linha no arquivo final
@@ -121,7 +152,7 @@ void Preprocesser::process_line(vector<asm_line>::iterator &line_iterator, fstre
     const string operation = line.operation;
     const string operands = line.operand[0] != "" ? (" " + line.operand[0] + (line.operand[1] != "" ? ", " + line.operand[1] : "")) : "";
     const string assembled_line = label + operation + operands;
-    output_file << assembled_line << endl;
+    return assembled_line;
 }
 
 int main(int argc, char *argv[]) {
@@ -145,11 +176,8 @@ int main(int argc, char *argv[]) {
         Preprocesser preprocesser;
         preprocesser.preprocess(argv[1], print);
     }
-    catch (char const* error) {
-        cerr << "ERRO: Exceção no pré-processador. Mensagem:\n" << error << endl;
-    }
-    catch (string error) {
-        cerr << "ERRO: Exceção no pré-processador. Mensagem:\n" << error << endl;
+    catch (MounterException error) {
+        cerr << "ERRO: " << error.what() << endl;
     }
 
     return 0;

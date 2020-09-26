@@ -14,7 +14,7 @@ class Preprocesser {
     // Dicionário de diretivas de préprocessamento para suas rotinas
     std::map<std::string, void(*)(std::vector<asm_line>::iterator&, Preprocesser*)> pre_directive_table;
     // Processa uma linha, adicionando ela ao arquivo final ou executando uma diretiva de préprocessamento
-    void process_line(std::vector<asm_line>::iterator&, std::fstream&);
+    std::string process_line(std::vector<asm_line>::iterator&);
     // Tenta acessar o valor atribuído ao parametro pela tabela de sinônimos. Se não houver, lança uma exceção
     int resolve_synonym(std::string synonym);
     // Executa a diretiva EQU
