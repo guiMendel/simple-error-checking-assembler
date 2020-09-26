@@ -5,41 +5,90 @@
 #include <iterator>
 #include <iostream>
 #include <fstream>
+#include "../include/scanner.hpp"
 
 using namespace std;
 
-struct asm_line {
-    int number;
-    string label;
-    string operation;
-    string operand[2];
-};
+vector<asm_line> Scanner::scan (string source_path, bool print/*  = false */) {
+    // Lê o arquivo e gera a sua stream
+    fstream source(source_path);
 
-class Preprocesser {
-    // Responsável por ler do arquivo fonte e gerar uma lista de linhas separadas em elementos
-    fstream source;
-    // Vetor de linhas divididas do código
-    vector<asm_line> program_lines;
-    // Separa uma linha do código nos elementos rótulo, operação e operandos
-    asm_line break_line(string, int);
-    // Determina se um token é um rótulo
-    bool has_label(string token) {return token.find(':') != string::npos;}
-    void populate_lines();
-    public:
-    Preprocesser(fstream&);
-    ~Preprocesser() {source.close();}
-    void print_list();
-};
-
-Preprocesser::Preprocesser (fstream &provided_source) {
-    if (!provided_source.is_open()) {
-        throw "Stream de arquivo não estava aberta. Favor, fornceça uma stream com arquivo aberto.";
+    if (!source.is_open()) {
+        string error = "Falha ao abrir arquivo \"" + source_path + "\"";
+        throw error;
     }
-    source.swap(provided_source);
-    populate_lines();
+
+    // Início do loop principal
+    // Vai receber cada uma das linhas brutas
+    string line;
+    // Armazena um rótulo que vier em linhas anteriores à sua operação
+    string stray_label;
+    // Armazena a estrutura do programa
+    vector<asm_line> program_lines;
+    
+    for (
+        int line_number = 1;
+        getline(source, line);
+        line_number++
+    ) {
+        // Remove o /r da linha
+        // line.pop_back();
+        // cout << "Line: <" << line << ">" << endl;
+        if (line.empty()) continue;
+        
+        // Separa a linha em elementos
+        asm_line broken_line = break_line(line, line_number);
+
+        // Se for uma linha completa, já registramos
+        if (broken_line.operation != "") {
+            // Verificamos se há um rótulo declarado anteriormente para essa operação
+            if (stray_label != "") {
+                // Garantimos que não haja outro rótulo nessa mesma linha
+                if (broken_line.label != "") {
+                    string error = "Rótulo \"" + broken_line.label + "\" conflita com o rótulo declarado anteriormente \"" + stray_label + "\"";
+                    throw error;
+                }
+
+                broken_line.label = stray_label;
+                // Limpamos o cache de rótulo
+                stray_label = "";
+            }
+            // Registra essa linha de código
+            program_lines.push_back(broken_line);
+        }
+        
+        // Se a linha só tiver um rótulo, aplicamos ele na linha seguinte
+        else if (broken_line.label != "") {
+            // Se já tiver um rótulo armazenado, levanta um erro
+            if (stray_label != "") {
+                string error = "Rótulo \"" + broken_line.label + "\" conflita com o rótulo declarado anteriormente \"" + stray_label + "\"";
+                throw error;
+            }
+            stray_label = broken_line.label;
+        }
+    }
+
+    // Fecha o arquivo
+    source.close();
+
+    if (print) {
+        cout << "Estrutura do programa: {" << endl;
+        for (const asm_line line : program_lines) {
+            cout << "\tLinha " << line.number << ": {";
+            string aux = "";
+            if (line.label.length()) aux += "label: \"" + line.label + "\", ";
+            if (line.operation.length()) aux += "operation: \"" + line.operation + "\", ";
+            if (line.operand[0].length()) aux += "operand1: \"" + line.operand[0] + "\", ";
+            if (line.operand[1].length()) aux += "operand2: \"" + line.operand[1] + "\", ";
+            cout << aux.substr(0, aux.length() - 2) << "}" << endl;
+        }
+        cout << "}" << endl;
+    }
+
+    return program_lines;
 }
 
-asm_line Preprocesser::break_line(string line, int number) {
+asm_line Scanner::break_line(string line, int number) {
     // cout << "Linha não formatada: '" << line << "'" << endl;
 
     asm_line line_tokens;
@@ -100,7 +149,7 @@ asm_line Preprocesser::break_line(string line, int number) {
         if (has_label(token)) {
             // Se não for a primeira palavra, é erro
             if (label_ok) {
-                string error = "Rótulo '" + token + "' em linha que já possui rótulo";
+                string error = "Rótulo '" + token + "' inválido";
                 throw error;
             }
 
@@ -203,96 +252,25 @@ asm_line Preprocesser::break_line(string line, int number) {
     return line_tokens;
 }
 
-void Preprocesser::populate_lines () {
-    // Inicia o loop principal linha por linha
-    string line;
-    // Posiciona o ponteiro no início da stream
-    source.seekg(0);
-    // Armazena um rótulo que vieram em linhas anteriores à sua operação
-    string stray_label;
-    int i = 1;
-    while (getline(source, line)) {
-        // Remove o /r da linha
-        // line.pop_back();
-        // cout << "Line: <" << line << ">" << endl;
-        i++;
-        if (line.empty()) continue;
-        
-        // Separa a linha em elementos
-        asm_line broken_line = break_line(line, i-1);
+// int main(int argc, char *argv[]) {
+//     // Garante que o uso foi correto
+//     if (argc != 2) {
+//         cout << "ERRO: Número de argumentos inválido.\nPor favor, forneça o caminho do arquivo fonte asm." << endl;
+//         return -1;
+//     }
 
-        // Se for uma linha completa, já registramos
-        if (broken_line.operation != "") {
-            // Verificamos se há um rótulo declarado anteriormente para essa operação
-            if (stray_label != "") {
-                // Garantimos que não haja outro rótulo nessa mesma linha
-                if (broken_line.label != "") {
-                    string error = "Rótulo \"" + broken_line.label + "\" conflita com o rótulo declarado anteriormente \"" + stray_label + "\"";
-                    throw error;
-                }
+//     // cout << argv[1] << endl;
 
-                broken_line.label = stray_label;
-                // Limpamos o cache de rótulo
-                stray_label = "";
-            }
-            // Registra essa linha de código
-            program_lines.push_back(broken_line);
-        }
-        
-        // Se a linha só tiver um rótulo, aplicamos ele na linha seguinte
-        else if (broken_line.label != "") {
-            // Se já tiver um rótulo armazenado, levanta um erro
-            if (stray_label != "") {
-                string error = "Rótulo \"" + broken_line.label + "\" conflita com o rótulo declarado anteriormente \"" + stray_label + "\"";
-                throw error;
-            }
-            stray_label = broken_line.label;
-        }
-    }
-}
+//     try {
+//         Scanner scanner;
+//         scanner.scan(argv[1], true);
+//     }
+//     catch (char const* error) {
+//         cerr << "ERRO: Exceção no pré-processador. Mensagem:\n" << error << endl;
+//     }
+//     catch (string error) {
+//         cerr << "ERRO: Exceção no pré-processador. Mensagem:\n" << error << endl;
+//     }
 
-void Preprocesser::print_list () {
-    cout << "Estrutura do programa: {" << endl;
-    for (const asm_line line : program_lines) {
-        cout << "\tLinha " << line.number << ": {";
-        string aux = "";
-        if (line.label.length()) aux += "label: \"" + line.label + "\", ";
-        if (line.operation.length()) aux += "operation: \"" + line.operation + "\", ";
-        if (line.operand[0].length()) aux += "operand1: \"" + line.operand[0] + "\", ";
-        if (line.operand[1].length()) aux += "operand2: \"" + line.operand[1] + "\", ";
-        cout << aux.substr(0, aux.length() - 2) << "}" << endl;
-    }
-    cout << "}" << endl;
-}
-
-// Recebe o caminho do arquivo fonte asm como argumento
-int main(int argc, char *argv[]) {
-    // Garante que o uso foi correto
-    if (argc != 2) {
-        cout << "ERRO: Número de argumentos inválido.\nPor favor, forneça o caminho do arquivo fonte asm." << endl;
-        return -1;
-    }
-
-    // cout << argv[1] << endl;
-
-    // Acessamos o arquivo fonte
-    fstream source(argv[1]);
-    // Confirmamos o sucesso do acesso
-    if (source.is_open()) {
-        try {
-            Preprocesser prepocesser(source);
-            prepocesser.print_list();
-        }
-        catch (char const* error) {
-            cerr << "ERRO: Exceção no pré-processador. Mensagem:\n" << error << endl;
-        }
-        catch (string error) {
-            cerr << "ERRO: Exceção no pré-processador. Mensagem:\n" << error << endl;
-        }
-    }
-
-    else cout << "ERRO: Falha ao abrir arquivo " << argv[1] << endl;
-    
-
-    return 0;
-}
+//     return 0;
+// }
