@@ -103,7 +103,8 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
     // Passa por cada linha
     for (auto line_iterator = lines.begin(); line_iterator != lines.end(); line_iterator++) {
         try {
-            output_lines += process_line(line_iterator) + "\n";
+            const string new_line = process_line(line_iterator);
+            output_lines += (new_line != "" ? new_line + "\n" : "");
         }
         catch (MounterException error) {
             // Coleta informações sobre o erro
@@ -153,32 +154,4 @@ string Preprocesser::process_line(vector<asm_line>::iterator &line_iterator) {
     const string operands = line.operand[0] != "" ? (" " + line.operand[0] + (line.operand[1] != "" ? ", " + line.operand[1] : "")) : "";
     const string assembled_line = label + operation + operands;
     return assembled_line;
-}
-
-int main(int argc, char *argv[]) {
-    // Garante que o uso foi correto
-    if (argc < 2 || argc > 3) {
-        cout << "ERRO: Número de argumentos inválido.\nPor favor, forneça o caminho do arquivo fonte asm." << endl;
-        return -1;
-    }
-
-    // cout << argv[1] << endl;
-
-    // Determina se deve ou não imprimir a estrutura do programa
-    bool print;
-    if (argc > 2 && string(argv[2]) == "--print") {
-        cout << argv[2] << endl;
-        print = true;
-    }    
-    else print = false;
-
-    try {
-        Preprocesser preprocesser;
-        preprocesser.preprocess(argv[1], print);
-    }
-    catch (MounterException error) {
-        cerr << "ERRO: " << error.what() << endl;
-    }
-
-    return 0;
 }
