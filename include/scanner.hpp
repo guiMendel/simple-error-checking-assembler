@@ -8,7 +8,7 @@
 // Representa uma linha do código separada por elementos
 struct asm_line {
     int number;
-    std::string label;
+    std::vector<std::string> labels;
     std::string operation;
     std::string operand[2];
 };
@@ -34,8 +34,6 @@ class ScannerException : public MounterException {
 
 // Responsável por ler do arquivo fonte e gerar um vetor com as linhas separadas por elemento
 class Scanner {
-    // Determina se um token é um rótulo
-    bool has_label(std::string token) {return token.find(':') != std::string::npos;}
     // Determina se os erros devem ou não ser reportados
     bool report_all_errors;
     // Separa uma única linha em seus elementos
@@ -45,8 +43,8 @@ class Scanner {
     Scanner(bool report = true) : report_all_errors(report) {}
     // Recebe um arquivo e retorna a estrutura do programa. Recebe uma opção de imprimir a estrutura resultante ou não. Recebe uma referência string na qual imprime todos os erros encontrados.
     std::vector<asm_line> scan(std::string, std::string&, bool print = false);
-    // Recebe uma linha e um rótulo. Se a linha não tiver rótulo, coloca o recebido nela e apaga ele. Se já tiver, lança uma exceção se o argumento permitir. Retorna a nova linha.
-    void rectify_line_label(asm_line&, std::string&, bool throws = true);
+    // Recebe uma linha e um vetor de rótulos, e encaixa os rótulos na linha.
+    void assign_labels(asm_line&, std::vector<std::string>&);
 };
 
 #endif

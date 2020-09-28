@@ -3,6 +3,8 @@
 
 using namespace std;
 
+#define EVERY_LABEL_IN(line) (const string label : line.labels)
+
 auto OperationSupplier::supply_pre_directives() -> std::map<std::string, void(*)(std::vector<asm_line>::iterator&, Preprocesser*)> {
     // Popula a tabela de diretivas de préprocessamento
     // Implementação do padrão de projeto Command
@@ -29,9 +31,13 @@ void OperationSupplier::eval_EQU(std::vector<asm_line>::iterator& line_iterator,
         // Verifica se o rótulo foi definido anteriormente por outro EQU
         value = pre_instance->resolve_synonym(line.operand[0]);
     }
-    if (verbose) cout << "[" << __FILE__ << "]> Found EQU. Defining label \"" << line.label << "\" as " << value << "...";
-    synonym_table[line.label] = value;
-    if (verbose) cout << (synonym_table[line.label] == value ? "OK" : "FAILED") << endl;
+    if (verbose) {
+        cout << "[" << __FILE__ << "]> Encontrado EQU. Definindo os rótulos ";
+        for EVERY_LABEL_IN(line) cout << "\"" << label << "\" ";
+        cout << " como " << value << "...";
+    }
+    for EVERY_LABEL_IN(line) synonym_table[label] = value;
+    if (verbose) cout << "OK" << endl;
 }
 
 void OperationSupplier::eval_IF(std::vector<asm_line>::iterator& line_iterator, Preprocesser *pre_instance) {
@@ -50,11 +56,11 @@ void OperationSupplier::eval_IF(std::vector<asm_line>::iterator& line_iterator, 
     }    
     
     // Executa a regra de negócio
-    if (value == 1 && verbose) {
-        cout << "[" << __FILE__ << "]> Found IF evaluated to true. Keeping next line" << endl;
+    if (value == 1) {
+        if (verbose) cout << "[" << __FILE__ << "]> Encontrado IF avaliado verdadeiro. Mantendo próxima linha" << endl;
     }
     else {
-        if (verbose) cout << "[" << __FILE__ << "]> Found IF evaluated to false. Skipping next line" << endl;
+        if (verbose) cout << "[" << __FILE__ << "]> Encontrado IF avaliado falso. Pulando próxima linha" << endl;
         line_iterator++;
     }    
 }

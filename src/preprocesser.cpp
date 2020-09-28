@@ -75,6 +75,13 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
         }
     }
 
+    if (verbose) {
+        cout << "Definições da tabela de sinônimos:\n";
+        for (auto synonym_entry_it = synonym_table.begin(); synonym_entry_it != synonym_table.end(); synonym_entry_it++) {
+            cout << "\t" << synonym_entry_it->first << ": " << synonym_entry_it->second << endl;
+        }
+    }
+    
     // Finaliza o arquivo ou imprime os erros
     if (error_log.empty()) {
         pre << output_lines;
@@ -114,9 +121,13 @@ string Preprocesser::process_line(vector<asm_line>::iterator &line_iterator) {
     }
     
     // Imprime a linha no arquivo final
-    const string label = line.label != "" ? line.label + ": " : "\t";
+    string labels;
+    for (const string label : line.labels) {
+        labels += label + ":\n";
+    }
+    labels += "\t";
     const string operation = line.operation;
     const string operands = line.operand[0] != "" ? (" " + line.operand[0] + (line.operand[1] != "" ? ", " + line.operand[1] : "")) : "";
-    const string assembled_line = label + operation + operands;
+    const string assembled_line = labels + operation + operands;
     return assembled_line;
 }

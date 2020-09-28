@@ -12,6 +12,9 @@ using namespace std;
 
 #define OMITABLE true
 #define NON_OMITABLE false
+#define NOT_EMPTY(thing) !thing.empty()
+#define HAS_OPERATION(line) NOT_EMPTY(line.operation)
+#define IS_LABEL(token) (token.length()>1) && (token.find(':') == token.length()-1)
 
 vector<asm_line> Scanner::scan (string source_path, string &error_log, bool print/*  = false */) {
     // Lê o arquivo e gera a sua stream
@@ -28,7 +31,7 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
     // Vai receber cada uma das linhas brutas
     string line;
     // Armazena um rótulo que vier em linhas anteriores à sua operação
-    string stray_label;
+    vector<string> stray_labels;
     // Armazena a estrutura do programa
     vector<asm_line> program_lines;
     
@@ -46,29 +49,17 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
             // Separa a linha em elementos
             asm_line broken_line = break_line(line, line_number);
 
-            // Se for uma linha completa, já registramos
-            if (!broken_line.operation.empty()) {
+            // Se for uma linha com operação, já registramos
+            if (HAS_OPERATION(broken_line)) {
                 // Verificamos se há um rótulo declarado anteriormente para essa operação
-                rectify_line_label(broken_line, stray_label);
+                assign_labels(broken_line, stray_labels);
                 // Registra essa linha de código
                 program_lines.push_back(broken_line);
             }
             
-            // Se a linha só tiver um rótulo, aplicamos ele na linha seguinte
-            else if (broken_line.label != "") {
-                // Se já tiver um rótulo armazenado, levanta um erro
-                if (stray_label != "") {
-                    // Fica com o rótulo mais recente
-                    stray_label = broken_line.label;
-                    // Envia uma linha sem operação para que não seja adicionada nenhuma
-                    asm_line dummy_line;
-                    dummy_line.operation = "";
-                    ScannerException error (broken_line.number, "semântico", NON_OMITABLE, dummy_line,
-                            "Rótulo \"" + broken_line.label + "\" conflita com o rótulo declarado anteriormente \"" + stray_label + "\""
-                        );
-                    throw error;
-                }
-                stray_label = broken_line.label;
+            // Se a linha só tiver rótulos, aplicamos eles na linha seguinte
+            else if (NOT_EMPTY(broken_line.labels)) {
+                stray_labels.insert(stray_labels.end(), broken_line.labels.begin(), broken_line.labels.end());
             }
         }
         catch (ScannerException &error) {
@@ -79,8 +70,8 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
             // Constroi o que puder, para que chegue até o fim
             asm_line provisory_line = error.get_provisory_line();
             if (provisory_line.operation != "") {
-                // Recebe o mesmo tratamento de rótulo, mas sem lançar exceção
-                rectify_line_label(provisory_line, stray_label, false);
+                // Recebe o mesmo tratamento de rótulo
+                assign_labels(provisory_line, stray_labels);
                 // Registra essa linha de código
                 program_lines.push_back(provisory_line);
             }
@@ -110,12 +101,18 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
         cout << "Estrutura do programa: {" << endl;
         for (const asm_line line : program_lines) {
             cout << "\tLinha " << line.number << ": {";
-            string aux = "";
-            if (line.label.length()) aux += "label: \"" + line.label + "\", ";
-            if (line.operation.length()) aux += "operation: \"" + line.operation + "\", ";
-            if (line.operand[0].length()) aux += "operand1: \"" + line.operand[0] + "\", ";
-            if (line.operand[1].length()) aux += "operand2: \"" + line.operand[1] + "\", ";
-            cout << aux.substr(0, aux.length() - 2) << "}" << endl;
+            string output = "";
+            if (NOT_EMPTY(line.labels)) {
+                string aux = "labels: [";
+                for (const string label : line.labels) {
+                    aux += "\"" + label + "\", ";
+                }
+                output += aux.substr(0, aux.length()-2) + "], ";
+            }
+            if (HAS_OPERATION(line)) output += "operation: \"" + line.operation + "\", ";
+            if (NOT_EMPTY(line.operand[0])) output += "operand1: \"" + line.operand[0] + "\", ";
+            if (NOT_EMPTY(line.operand[1])) output += "operand2: \"" + line.operand[1] + "\", ";
+            cout << output.substr(0, output.length() - 2) << "}" << endl;
         }
         cout << "}" << endl;
     }
@@ -123,22 +120,11 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
     return program_lines;
 }
 
-void Scanner::rectify_line_label(asm_line &line, string &stray_label, bool throws/* = true */) {
+void Scanner::assign_labels(asm_line &line, vector<string> &stray_labels) {
     // Verificamos se há um rótulo declarado anteriormente para essa operação
-    if (!stray_label.empty()) {
-        // Garantimos que não haja outro rótulo nessa mesma linha
-        if (line.label.empty()) {
-            line.label = stray_label;
-            // Limpamos o cache de rótulo
-            stray_label = "";
-        }
-        else if (throws) {
-            // Este erro não é omitível pois pode corromper o préprocessamento
-            ScannerException error (line.number, "semântico", NON_OMITABLE, line,
-                "Rótulo \"" + line.label + "\" conflita com o rótulo declarado anteriormente \"" + stray_label + "\""
-            );
-            throw error;
-        }                
+    if (NOT_EMPTY(stray_labels)) {
+        line.labels.insert(line.labels.end(), stray_labels.begin(), stray_labels.end());
+        stray_labels.clear();
     }
 }
 
@@ -147,7 +133,6 @@ asm_line Scanner::break_line(string line, int line_number) {
 
     asm_line line_tokens;
     line_tokens.number = line_number;
-    line_tokens.label = "";
     line_tokens.operation = "";
     line_tokens.operand[0] = "";
     line_tokens.operand[1] = "";
@@ -204,13 +189,13 @@ asm_line Scanner::break_line(string line, int line_number) {
         
         // Caso seja um rótulo
         // Erros de rótulo não são omitíveis pois podem alterar o funcionamento das diretivas
-        if (has_label(token)) {
-            // Se não for a primeira palavra, é erro
+        if (IS_LABEL(token)) {
+            // Devem ser os primeiros da linha
             if (label_ok) {
                 asm_line dummy_line;
                 dummy_line.operation = "";
-                ScannerException error (line_number, "léxico", NON_OMITABLE, dummy_line,
-                    string("Rótulo \"" + token + "\" inválido")
+                ScannerException error (line_number, "sintático", NON_OMITABLE, dummy_line,
+                    string("Rótulo \"" + token + "\" em posição inválida")
                 );
                 exceptions.push_back(error);
                 continue;
@@ -233,8 +218,7 @@ asm_line Scanner::break_line(string line, int line_number) {
                 continue;
             }
 
-            line_tokens.label = token;
-            label_ok = true;
+            line_tokens.labels.push_back(token);
             continue;
         }
         label_ok = true;
@@ -369,28 +353,4 @@ asm_line Scanner::break_line(string line, int line_number) {
         }
         throw exceptions;
     }
-
 }
-
-// int main(int argc, char *argv[]) {
-//     // Garante que o uso foi correto
-//     if (argc != 2) {
-//         cout << "ERRO: Número de argumentos inválido.\nPor favor, forneça o caminho do arquivo fonte asm." << endl;
-//         return -1;
-//     }
-
-//     // cout << argv[1] << endl;
-
-//     try {
-//         Scanner scanner;
-//         scanner.scan(argv[1], true);
-//     }
-//     catch (char const* error) {
-//         cerr << "ERRO: Exceção no pré-processador. Mensagem:\n" << error << endl;
-//     }
-//     catch (string error) {
-//         cerr << "ERRO: Exceção no pré-processador. Mensagem:\n" << error << endl;
-//     }
-
-//     return 0;
-// }
