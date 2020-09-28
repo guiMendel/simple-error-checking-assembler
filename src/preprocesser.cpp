@@ -7,14 +7,17 @@
 #include "../include/scanner.hpp"
 #include "../include/preprocesser.hpp"
 #include "../include/mounter_exception.hpp"
+#include "../include/operation_supplier.hpp"
 
 using namespace std;
 
 Preprocesser::Preprocesser(bool verbose/* = false */) : verbose(verbose)  {
     // Popula a tabela de diretivas de préprocessamento
     // Implementação do padrão de projeto Command
-    pre_directive_table["EQU"] = &eval_EQU;
-    pre_directive_table["IF"] = &eval_IF;
+    // pre_directive_table["EQU"] = &eval_EQU;
+    // pre_directive_table["IF"] = &eval_IF;
+    OperationSupplier supplier;
+    pre_directive_table = supplier.supply_pre_directives();
 }
 
 int Preprocesser::resolve_synonym(string synonym) {
@@ -32,50 +35,6 @@ int Preprocesser::resolve_synonym(string synonym) {
         throw error;
     }
     return synonym_entry->second;
-}
-
-void Preprocesser::eval_EQU(std::vector<asm_line>::iterator& line_iterator, Preprocesser *pre_instance) {
-    const asm_line line = *line_iterator;
-    bool verbose = pre_instance->verbose;
-
-    // Descobre o valor da definição
-    int value;
-    try {
-        value = stoi(line.operand[0]);
-    }
-    // Se o operando for outro rótulo, stoi() lançará uma exceção
-    catch (invalid_argument error) {
-        // Verifica se o rótulo foi definido anteriormente por outro EQU
-        value = pre_instance->resolve_synonym(line.operand[0]);
-    }
-    if (verbose) cout << "[" << __FILE__ << "]> Found EQU. Defining label \"" << line.label << "\" as " << value << "...";
-    pre_instance->synonym_table[line.label] = value;
-    if (verbose) cout << (pre_instance->synonym_table[line.label] == value ? "OK" : "FAILED") << endl;
-}
-
-void Preprocesser::eval_IF(std::vector<asm_line>::iterator& line_iterator, Preprocesser *pre_instance) {
-    const asm_line line = *line_iterator;
-    bool verbose = pre_instance->verbose;
-
-    // Descobre o valor do operando
-    int value;
-    try {
-        value = stoi(line.operand[0]);
-    }
-    // Se o operando for outro rótulo, stoi() lançará uma exceção
-    catch (invalid_argument error) {
-        // Verifica se o rótulo foi definido anteriormente por outro EQU
-        value = pre_instance->resolve_synonym(line.operand[0]);
-    }    
-    
-    // Executa a regra de negócio
-    if (value == 1 && verbose) {
-        cout << "[" << __FILE__ << "]> Found IF evaluated to true. Keeping next line" << endl;
-    }
-    else {
-        if (verbose) cout << "[" << __FILE__ << "]> Found IF evaluated to false. Skipping next line" << endl;
-        line_iterator++;
-    }    
 }
 
 void Preprocesser::preprocess (string path, bool print/* = false */) {
@@ -106,7 +65,7 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
     for (auto line_iterator = lines.begin(); line_iterator != lines.end(); line_iterator++) {
         try {
             const string new_line = process_line(line_iterator);
-            output_lines += (new_line != "" ? new_line + "\n" : "");
+            output_lines += (new_line.empty() ? "" : new_line + "\n");
         }
         catch (MounterException error) {
             // Coleta informações sobre o erro
@@ -117,7 +76,7 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
     }
 
     // Finaliza o arquivo ou imprime os erros
-    if (error_log == "") {
+    if (error_log.empty()) {
         pre << output_lines;
         pre.close();
     }

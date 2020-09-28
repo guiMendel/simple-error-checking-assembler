@@ -1,15 +1,16 @@
 #include <string.h>
 #include <iostream>
 #include "include/preprocesser.hpp"
+#include "include/two_pass.hpp"
 
 using namespace std;
 
 int main(int argc, char *argv[]) {
     // Descrição do uso correto
     const string help = "\
-Forneça o tipo de compilação:\n\
--p para preprocessar um arquivo do tipo .asm e gerar um arquivo .pre\n\
--o para montar um arquivo .pre em um arquivo executável\n\
+Forneça um dos dois tipos de compilação:\n\
+-p para preprocessar um arquivo .asm em um arquivo .pre\n\
+-o para montar um arquivo .pre em um arquivo .obj\n\
 \n\
 Forneça também o caminho para o arquivo fonte\n\
 \n\
@@ -94,6 +95,10 @@ Outras opções:\n\
         if (mode == "-p") {
             Preprocesser preprocesser(verbose);
             preprocesser.preprocess(source_file_path, print);
+        }
+        else if (mode == "-o") {
+            // TwoPassAlgorithm assembler(verbose);
+            // assembler.assemble(source_file_path, print);
         }
     }
     catch (exception &error) {

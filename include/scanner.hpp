@@ -19,8 +19,7 @@ class ScannerException : public MounterException {
     const bool omitable;
     // Define uma construção de linha provisória, que é construída apenas para que o programa continue seja possível levantar outros possíveis erros em linhas seguintes
     asm_line provisory_line;
-    // // Aponta para outra exceção. Utilizado para lançar um batch de exceções da mesma linha.
-    // ScannerException *trail;
+
     public:
     ScannerException(int line, std::string type, bool omitable, asm_line provisory_line, std::string message) :
         MounterException(line, type, message),
@@ -31,11 +30,6 @@ class ScannerException : public MounterException {
     const bool not_omitable() const {return !omitable;}
     asm_line get_provisory_line() const {return provisory_line;}
     void update_provisory_line(asm_line update) {provisory_line = update;}
-
-    // void set_trail(ScannerException *next_exception) {trail = next_exception;}
-    // // Aponta para a próxima exceção do batch
-    // ScannerException* next() const {return trail;}
-
 };
 
 // Responsável por ler do arquivo fonte e gerar um vetor com as linhas separadas por elemento
@@ -46,6 +40,7 @@ class Scanner {
     bool report_all_errors;
     // Separa uma única linha em seus elementos
     asm_line break_line(std::string, int);
+    
     public:
     Scanner(bool report = true) : report_all_errors(report) {}
     // Recebe um arquivo e retorna a estrutura do programa. Recebe uma opção de imprimir a estrutura resultante ou não. Recebe uma referência string na qual imprime todos os erros encontrados.
