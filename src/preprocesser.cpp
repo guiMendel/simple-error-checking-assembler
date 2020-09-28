@@ -10,7 +10,7 @@
 
 using namespace std;
 
-Preprocesser::Preprocesser() {
+Preprocesser::Preprocesser(bool verbose/* = false */) : verbose(verbose)  {
     // Popula a tabela de diretivas de préprocessamento
     // Implementação do padrão de projeto Command
     pre_directive_table["EQU"] = &eval_EQU;
@@ -36,6 +36,7 @@ int Preprocesser::resolve_synonym(string synonym) {
 
 void Preprocesser::eval_EQU(std::vector<asm_line>::iterator& line_iterator, Preprocesser *pre_instance) {
     const asm_line line = *line_iterator;
+    bool verbose = pre_instance->verbose;
 
     // Descobre o valor da definição
     int value;
@@ -47,13 +48,14 @@ void Preprocesser::eval_EQU(std::vector<asm_line>::iterator& line_iterator, Prep
         // Verifica se o rótulo foi definido anteriormente por outro EQU
         value = pre_instance->resolve_synonym(line.operand[0]);
     }
-    cout << "Found EQU. Defining label \"" << line.label << "\" as " << value << "...";
+    if (verbose) cout << "[" << __FILE__ << "]> Found EQU. Defining label \"" << line.label << "\" as " << value << "...";
     pre_instance->synonym_table[line.label] = value;
-    cout << (pre_instance->synonym_table[line.label] == value ? "OK" : "FAILED") << endl;
+    if (verbose) cout << (pre_instance->synonym_table[line.label] == value ? "OK" : "FAILED") << endl;
 }
 
 void Preprocesser::eval_IF(std::vector<asm_line>::iterator& line_iterator, Preprocesser *pre_instance) {
     const asm_line line = *line_iterator;
+    bool verbose = pre_instance->verbose;
 
     // Descobre o valor do operando
     int value;
@@ -67,11 +69,11 @@ void Preprocesser::eval_IF(std::vector<asm_line>::iterator& line_iterator, Prepr
     }    
     
     // Executa a regra de negócio
-    if (value == 1) {
-        cout << "Found IF evaluated to true. Keeping next line" << endl;
+    if (value == 1 && verbose) {
+        cout << "[" << __FILE__ << "]> Found IF evaluated to true. Keeping next line" << endl;
     }
     else {
-        cout << "Found IF evaluated to false. Skipping next line" << endl;
+        if (verbose) cout << "[" << __FILE__ << "]> Found IF evaluated to false. Skipping next line" << endl;
         line_iterator++;
     }    
 }
@@ -79,8 +81,10 @@ void Preprocesser::eval_IF(std::vector<asm_line>::iterator& line_iterator, Prepr
 void Preprocesser::preprocess (string path, bool print/* = false */) {
     // O parâmtero solicita que o scanner não levante erros
     Scanner scanner(false);
+    // Coleta os erros lançados
+    string error_log = "";
     // Gera a estrutura do programa
-    vector<asm_line> lines = scanner.scan(path, print);
+    vector<asm_line> lines = scanner.scan(path, error_log, print);
 
     // Define o nome do arquivo sem a extensão
     const string pre_name = path.substr(0, path.find('.'));
@@ -95,8 +99,6 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
         throw error;
     }
 
-    // Coleta os erros lançados
-    string error_log = "";
     // Coleta as linhas resultantes
     string output_lines = "";
 
@@ -120,10 +122,14 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
         pre.close();
     }
     else {
-        cerr << "ERRO:\n" << error_log.substr(0, error_log.length()-2);
         pre.close();
         // Deleta o arquivo vazio
         remove(pre_path.c_str());
+
+        MounterException error (-1, "null",
+            string(__FILE__) + ":" + to_string(__LINE__) + "> ERRO:\n" + error_log.substr(0, error_log.length()-2)
+        );
+        throw error;
     }
     
     synonym_table.clear();

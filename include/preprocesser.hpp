@@ -9,6 +9,8 @@
 #include "scanner.hpp"
 
 class Preprocesser {
+    // Define se descrções serão impressas
+    const bool verbose;
     // Armazena um dicionário das definições de sinônimo do programa
     std::map<std::string, int> synonym_table;
     // Dicionário de diretivas de préprocessamento para suas rotinas
@@ -25,7 +27,7 @@ class Preprocesser {
     // Recebe um arquivo e cria um novo arquivo .PRE, com o código preprocessado
     void preprocess(std::string, bool print = false);
     // Construtor
-    Preprocesser();
+    Preprocesser(bool verbose = false);
 };
 
 #endif

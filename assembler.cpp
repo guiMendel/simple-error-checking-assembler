@@ -1,12 +1,33 @@
+#include <string.h>
 #include <iostream>
 #include "include/preprocesser.hpp"
 
 using namespace std;
 
 int main(int argc, char *argv[]) {
+    // Descrição do uso correto
+    const string help = "\
+Forneça o tipo de compilação:\n\
+-p para preprocessar um arquivo do tipo .asm e gerar um arquivo .pre\n\
+-o para montar um arquivo .pre em um arquivo executável\n\
+\n\
+Forneça também o caminho para o arquivo fonte\n\
+\n\
+Outras opções:\n\
+\t--print: Imprime a estrutura do programa, como construída pelo módulo scanner\n\
+\t--verbose: Imprime descrições detalhadas da execução\n\
+";
+    // Ajuda os necessitados
+    // string thing = string(argv[1]);
+    // cout << argc << " " << argv[1] << "\n" << typeid(thing).name() << " " << typeid("help").name() << endl;
+    if (argc == 2 && (strcmp(argv[1], "help") || strcmp(argv[1], "--help") || strcmp(argv[1], "-h"))) {
+        cout << "Bem vindo a este montador básico!\n" << help << endl;
+        return 0;
+    }
+
     // Garante que o uso foi correto
-    if (argc < 3 || argc > 4) {
-        cerr << "ERRO: Número de argumentos inválido.\nPor favor, forneça o tipo de compilação: -p para preprocessar um arquivo .asm e -o para montar um arquivo .pre.\nForneça também o caminho par ao arquivo." << endl;
+    if (argc < 3 || argc > 5) {
+        cerr << "ERRO: Número de argumentos inválido.\n" << help << endl;
         return -1;
     }
 
@@ -15,7 +36,9 @@ int main(int argc, char *argv[]) {
     // Analise os parâmetros
     vector<char*> args (argv + 1, argv + argc);
     // Define se a árvore do programa deve ser impressa
-    bool print;
+    bool print = false;
+    // Define se imprime descrições
+    bool verbose = false;
     // Define se ocorrerá montagem ou préprocessamento
     string mode = "";
     // Guardará o caminho do arquivo fonte
@@ -26,9 +49,14 @@ int main(int argc, char *argv[]) {
         for (const char* carg : args) {
             // Transforma em string
             string arg = string(carg);
+            // cout << arg << endl;
             
             if      (arg == "--print") {
                 print = true;
+            }
+
+            else if      (arg == "--verbose") {
+                verbose = true;
             }
 
             else if (arg == "-p" || arg == "-o") {
@@ -54,22 +82,22 @@ int main(int argc, char *argv[]) {
         }
     }
     catch (char const* error) {
-        cerr << "ERRO: " << error << "\nPor favor, forneça o tipo de compilação: -p para preprocessar um arquivo .asm e -o para montar um arquivo .pre.\nForneça também o caminho para o arquivo." << endl;
+        cerr << __FILE__ << ":" << __LINE__ << "> ERRO: " << error << "\n" << help << endl;
         return -1;
     }
     catch (string error) {
-        cerr << "ERRO: " << error << "\nPor favor, forneça o tipo de compilação: -p para preprocessar um arquivo .asm e -o para montar um arquivo .pre.\nForneça também o caminho para o arquivo." << endl;
+        cerr << __FILE__ << ":" << __LINE__ << "> ERRO: " << error << "\n" << help << endl;
         return -1;
     }
 
     try {
         if (mode == "-p") {
-            Preprocesser preprocesser;
+            Preprocesser preprocesser(verbose);
             preprocesser.preprocess(source_file_path, print);
         }
     }
-    catch (exception error) {
-        cerr << "ERRO: " << error.what() << endl;
+    catch (exception &error) {
+        cerr << __FILE__ << ":" << __LINE__ << "> ERRO:\n" << error.what() << endl;
     }
 
     return 0;

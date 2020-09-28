@@ -5,6 +5,7 @@
 #include <exception>
 
 class MounterException : public std::exception {
+    protected:
     const int line;
     const std::string type;
     const std::string message;
@@ -16,7 +17,7 @@ class MounterException : public std::exception {
         line(line)
         {}
 
-    const char* what() const throw() {return message.c_str();}
+    const char* what() const noexcept {return message.c_str();}
     const char* get_type() const {return type.c_str();}
     const int get_line() const {return line;}
 };
