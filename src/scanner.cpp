@@ -12,8 +12,8 @@ using namespace std;
 
 #define OMITABLE true
 #define NON_OMITABLE false
-#define NOT_EMPTY(thing) !thing.empty()
-#define HAS_OPERATION(line) NOT_EMPTY(line.operation)
+#define ANY(thing) (!thing.empty())
+#define HAS_OPERATION(line) ANY(line.operation)
 #define IS_LABEL(token) (token.length()>1) && (token.find(':') == token.length()-1)
 
 vector<asm_line> Scanner::scan (string source_path, string &error_log, bool print/*  = false */) {
@@ -50,7 +50,7 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
             asm_line broken_line = break_line(line, line_number);
 
             // Se for uma linha com operação, já registramos
-            if (HAS_OPERATION(broken_line)) {
+            if HAS_OPERATION(broken_line) {
                 // Verificamos se há um rótulo declarado anteriormente para essa operação
                 assign_labels(broken_line, stray_labels);
                 // Registra essa linha de código
@@ -58,7 +58,7 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
             }
             
             // Se a linha só tiver rótulos, aplicamos eles na linha seguinte
-            else if (NOT_EMPTY(broken_line.labels)) {
+            else if ANY(broken_line.labels) {
                 stray_labels.insert(stray_labels.end(), broken_line.labels.begin(), broken_line.labels.end());
             }
         }
@@ -102,16 +102,16 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
         for (const asm_line line : program_lines) {
             cout << "\tLinha " << line.number << ": {";
             string output = "";
-            if (NOT_EMPTY(line.labels)) {
+            if ANY(line.labels) {
                 string aux = "labels: [";
                 for (const string label : line.labels) {
                     aux += "\"" + label + "\", ";
                 }
                 output += aux.substr(0, aux.length()-2) + "], ";
             }
-            if (HAS_OPERATION(line)) output += "operation: \"" + line.operation + "\", ";
-            if (NOT_EMPTY(line.operand[0])) output += "operand1: \"" + line.operand[0] + "\", ";
-            if (NOT_EMPTY(line.operand[1])) output += "operand2: \"" + line.operand[1] + "\", ";
+            if HAS_OPERATION(line) output += "operation: \"" + line.operation + "\", ";
+            if ANY(line.operand[0]) output += "operand1: \"" + line.operand[0] + "\", ";
+            if ANY(line.operand[1]) output += "operand2: \"" + line.operand[1] + "\", ";
             cout << output.substr(0, output.length() - 2) << "}" << endl;
         }
         cout << "}" << endl;
@@ -122,7 +122,7 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
 
 void Scanner::assign_labels(asm_line &line, vector<string> &stray_labels) {
     // Verificamos se há um rótulo declarado anteriormente para essa operação
-    if (NOT_EMPTY(stray_labels)) {
+    if ANY(stray_labels) {
         line.labels.insert(line.labels.end(), stray_labels.begin(), stray_labels.end());
         stray_labels.clear();
     }

@@ -7,10 +7,15 @@
 
 // Representa uma linha do código separada por elementos
 struct asm_line {
+    // Indica qual a linha no arquivo fonte .asm
     int number;
     std::vector<std::string> labels;
     std::string operation;
     std::string operand[2];
+    // // Indica qual será a linha no arquivo final .obj
+    // int final_number;
+    // Indica qual o código opcode da instrução
+    int opcode;
 };
 
 // Uma especificação das exceções de montador que servem uma linha provisória

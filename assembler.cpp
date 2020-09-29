@@ -97,8 +97,8 @@ Outras opções:\n\
             preprocesser.preprocess(source_file_path, print);
         }
         else if (mode == "-o") {
-            // TwoPassAlgorithm assembler(verbose);
-            // assembler.assemble(source_file_path, print);
+            TwoPassAlgorithm assembler(verbose);
+            assembler.assemble(source_file_path, print);
         }
     }
     catch (exception &error) {

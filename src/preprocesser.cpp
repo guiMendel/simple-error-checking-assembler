@@ -52,10 +52,7 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
     fstream pre(pre_path, fstream::out);
 
     if (!pre.is_open()) {
-        const MounterException error(-1, "null",
-            "Não foi possível criar o arquivo \"" + pre_path + "\""
-        );
-        throw error;
+        throw invalid_argument("Não foi possível criar o arquivo \"" + pre_path + "\"");
     }
 
     // Coleta as linhas resultantes
