@@ -68,7 +68,7 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
             // Coleta informações sobre o erro
             const int line = (error.get_line() == -1 ? line_iterator->number : error.get_line());
 
-            error_log += "Na linha " + to_string(line) + ", erro " + error.get_type() + ": " + error.what() + "\n\n";
+            error_log += "Na linha " + to_string(line) + ", erro " + error.get_type() + ": " + error.what() + "\n";
         }
     }
 
@@ -90,7 +90,7 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
         remove(pre_path.c_str());
 
         MounterException error (-1, "null",
-            string(__FILE__) + ":" + to_string(__LINE__) + "> ERRO:\n" + error_log.substr(0, error_log.length()-2)
+            string(__FILE__) + ":" + to_string(__LINE__) + "> ERRO:\n" + error_log.substr(0, error_log.length()-1)
         );
         throw error;
     }
@@ -122,7 +122,7 @@ string Preprocesser::process_line(vector<asm_line>::iterator &line_iterator) {
     for (const string label : line.labels) {
         labels += label + ":\n";
     }
-    labels += "\t";
+    labels += "    ";
     const string operation = line.operation;
     const string operands = line.operand[0] != "" ? (" " + line.operand[0] + (line.operand[1] != "" ? ", " + line.operand[1] : "")) : "";
     const string assembled_line = labels + operation + operands;

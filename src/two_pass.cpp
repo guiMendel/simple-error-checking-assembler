@@ -17,12 +17,12 @@ TwoPassAlgorithm::TwoPassAlgorithm(bool verbose/* = false */) : verbose(verbose)
     instruction_table = supplier.supply_instructions();
     directive_table = supplier.supply_directives();
 
-    for VECTOR_ITERATOR(it, instruction_table) {
-        cout << it->first << ": " << to_string(it->second[0]) << ", " << to_string(it->second[1]) << endl;
-    }
-    for VECTOR_ITERATOR(it, directive_table) {
-        cout << it->first << endl;
-    }
+    // for VECTOR_ITERATOR(it, instruction_table) {
+    //     cout << it->first << ": " << to_string(it->second[0]) << ", " << to_string(it->second[1]) << endl;
+    // }
+    // for VECTOR_ITERATOR(it, directive_table) {
+    //     cout << it->first << endl;
+    // }
 }
 
 void TwoPassAlgorithm::assemble(std::string path, bool print/* = false */) {
@@ -51,32 +51,23 @@ void TwoPassAlgorithm::assemble(std::string path, bool print/* = false */) {
     catch (const vector<MounterException> &errors) {
         // Para cada erro
         for (const MounterException error : errors) {
-            error_log += "Na linha " + to_string(error.get_line()) + ", erro " + error.get_type() + ": " + error.what() + "\n\n";
+            string intro = (error.get_line() == -1 ? "Erro " : "Na linha " + to_string(error.get_line()) + ", erro ");
+            error_log += intro + error.get_type() + ": " + error.what() + "\n";
         }
     }
 
-    cout << "Estrutura do programa ao final da primeira passagem: {" << endl;
-    for (const asm_line line : lines) {
-        cout << "\tLinha " << line.number << ": {";
-        string output = "";
-        if ANY(line.labels) {
-            string aux = "labels: [";
-            for (const string label : line.labels) {
-                aux += "\"" + label + "\", ";
-            }
-            output += aux.substr(0, aux.length()-2) + "], ";
-        }
-        output += "opcode: \"" + to_string(line.opcode) + "\", ";
-        if ANY(line.operation) output += "operation: \"" + line.operation + "\", ";
-        if ANY(line.operand[0]) output += "operand1: \"" + line.operand[0] + "\", ";
-        if ANY(line.operand[1]) output += "operand2: \"" + line.operand[1] + "\", ";
-        cout << output.substr(0, output.length() - 2) << "}" << endl;
-    }
-    cout << "}" << endl;
+    // Segunda passagem
+    // SEGUNDA PASSAGEM
 
+    if ANY(error_log) {
+        throw MounterException(-1, "null",
+            string(__FILE__) + ":" + to_string(__LINE__) + "> ERRO:\n" + error_log.substr(0, error_log.length()-1)
+        );
+    }
 }
 
 void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
+    // Acho que os rótulos estão recebendo as linhas deslocadas por 1, estão erradas!
     // Vai armazenar exceções possíveis para lançar um batch ao final da execução
     vector<MounterException> exceptions;
 
@@ -88,7 +79,10 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
     int current_line_number = 0;
     // Para cada linha
     for VECTOR_ITERATOR(line_iterator, lines) {
-        asm_line expression = *line_iterator;
+        asm_line &expression = *line_iterator;
+
+        // print_line(expression);
+        
         // Se houver rótulos
         if ANY(expression.labels) registerLabels(expression, current_line_number, exceptions);
 
@@ -104,17 +98,16 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
                 exceptions.push_back(MounterException(expression.number, "léxico",
                     "Seção \"" + new_section + "\" é inválida. As seções válidas são: " + SECTION_TEXT + ", " SECTION_DATA + ""
                 ));
-                lines.erase(line_iterator);
+                lines.erase(line_iterator--);
+                // cout << "-> Identificado como seção" << endl;
                 continue;
             }
             current_section = new_section;
             // A seção não chega ao código objeto
-            lines.erase(line_iterator);
+            lines.erase(line_iterator--);
+            // cout << "-> Identificado como seção" << endl;
             continue;
         }
-
-        // Garante que haja algum opcode
-        expression.opcode = -1;
 
         // Verifica a operação nas instruções
         auto instruction_entry = instruction_table.find(expression.operation);
@@ -139,6 +132,7 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
             expression.opcode = instruction_entry->second[0];
             // Desloca o ponteiro de linha
             current_line_number += instruction_entry->second[1];
+            // cout << "-> Identificado como instrução" << endl;
             continue;
         }
 
@@ -158,6 +152,7 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
             catch (const MounterException &error) {
                 exceptions.push_back(error);
             }
+            // cout << "-> Identificado como diretiva" << endl;
             continue;
         }
 
@@ -165,6 +160,7 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
         exceptions.push_back(MounterException(expression.number, "léxico",
             "Operação \"" + expression.operation + "\" não identificada"
         ));
+        // cout << "-> Identificado como inválido" << endl;
     }
 
     // Certifica de que haja seção texto
@@ -173,32 +169,33 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
             "Seção "s + SECTION_TEXT + " não encontrada"s
         ));
         // Remove as exeções que apontam operações em seção incorreta
-        vector<MounterException> filtered_exceptions;
         for VECTOR_ITERATOR(error_iterator, exceptions) {
-            if (error_iterator->what() != INCORRECT_SECTION) filtered_exceptions.push_back(*error_iterator);
+            if (strcmp(error_iterator->what(), INCORRECT_SECTION) == 0) exceptions.erase(error_iterator--);
         }
-        exceptions.clear();
-        exceptions.insert(exceptions.end(), filtered_exceptions.begin(), filtered_exceptions.end());
     }
     // Reúne os erros de seção incorreta em um só
     else if ANY(exceptions) {
         const string new_message = "As operações das linhas [";
         string error_lines = "";
-        vector<MounterException> filtered_exceptions;
+        // vector<MounterException> filtered_exceptions;
         for VECTOR_ITERATOR(error_iterator, exceptions) {
-            if (error_iterator->what() == INCORRECT_SECTION) {
+            if (strcmp(error_iterator->what(), INCORRECT_SECTION) == 0) {
                 error_lines += to_string(error_iterator->get_line()) + ", ";
+                exceptions.erase(error_iterator--);
             }
-            else filtered_exceptions.push_back(*error_iterator);
         }
         if ANY(error_lines) {
-            exceptions.clear();
-            exceptions.insert(exceptions.end(), filtered_exceptions.begin(), filtered_exceptions.end());
             exceptions.push_back(MounterException(-1, "semântico",
-                new_message + error_lines.substr(0, new_message.length()-2) + "] estão em seção incorreta"
+                new_message + error_lines.substr(0, error_lines.length()-2) + "] estão em seção incorreta"
             ));
         }
     }
+    
+    // cout << "Estrutura do programa ao final da primeira passagem: {" << endl;
+    // for (const asm_line line : lines) {
+    //     print_line(line);
+    // }
+    // cout << "}" << endl;
 
     // Finalmente lança o batch de exceções
     if ANY(exceptions) {
@@ -207,6 +204,13 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
 }
 
 void TwoPassAlgorithm::registerLabels(asm_line &expression, int current_line_number, vector<MounterException> &exceptions) {
+    // cout << "Tamanho do tabela de símbolos antes: " << symbol_table.size() << endl;
+    // cout << "Registrando os seguintes rótulos com o valor " << to_string(current_line_number) << ":";
+    // for (const string label : expression.labels) {
+    //     cout << " \"" << label << "\"";
+    // }
+    // cout << endl;
+    
     for (const string label : expression.labels) {
         // Verifica a validez do rótulo
         if (
@@ -229,4 +233,26 @@ void TwoPassAlgorithm::registerLabels(asm_line &expression, int current_line_num
     }
     // Não precisamos mais disso, liberamos a memória
     expression.labels.clear();
+    // cout << "Nova tabela de símbolos:" << endl;
+    // for VECTOR_ITERATOR(symbol_iterator, symbol_table) {
+    //     cout << symbol_iterator->first << ": " << symbol_iterator->second << endl;
+    // }
+    // cout << "Tamanho do tabela de símbolos depois: " << symbol_table.size() << "\nTamanho do grupo de rótulos recebido: " << expression.labels.size() << endl;
+}
+
+void TwoPassAlgorithm::print_line(asm_line expression) {
+    cout << "Linha " << expression.number << ": {";
+    string output = "";
+    output += "opcode: \"" + to_string(expression.opcode) + "\", ";
+    if ANY(expression.labels) {
+        string aux = "labels: [";
+        for (const string label : expression.labels) {
+            aux += "\"" + label + "\", ";
+        }
+        output += aux.substr(0, aux.length()-2) + "], ";
+    }
+    if ANY(expression.operation) output += "operation: \"" + expression.operation + "\", ";
+    if ANY(expression.operand[0]) output += "operand1: \"" + expression.operand[0] + "\", ";
+    if ANY(expression.operand[1]) output += "operand2: \"" + expression.operand[1] + "\", ";
+    cout << output.substr(0, output.length() - 2) << "}" << endl;
 }

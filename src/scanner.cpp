@@ -65,7 +65,8 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
         catch (ScannerException &error) {
             // Se o erro não for omitível ou o scanner for configurado para reportar todos os erros, adiciona ao log
             if (error.not_omitable() || report_all_errors == true) {
-                error_log += "Na linha " + to_string(error.get_line()) + ", erro " + error.get_type() + ": " + error.what() + "\n\n";
+                string intro = (error.get_line() == -1 ? "Erro " : "Na linha " + to_string(error.get_line()) + ", erro ");
+                error_log += intro + error.get_type() + ": " + error.what() + "\n";
             }
             // Constroi o que puder, para que chegue até o fim
             asm_line provisory_line = error.get_provisory_line();
@@ -88,7 +89,8 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
             for (const ScannerException error : batch) {
                 // Se o erro não for omitível ou o scanner for configurado para reportar todos os erros, adiciona ao log
                 if (error.not_omitable() || report_all_errors == true) {
-                    error_log += "Na linha " + to_string(error.get_line()) + ", erro " + error.get_type() + ": " + error.what() + "\n\n";
+                    string intro = (error.get_line() == -1 ? "Erro " : "Na linha " + to_string(error.get_line()) + ", erro ");
+                    error_log += intro + error.get_type() + ": " + error.what() + "\n";
                 }
             }
         }
@@ -131,8 +133,12 @@ void Scanner::assign_labels(asm_line &line, vector<string> &stray_labels) {
 asm_line Scanner::break_line(string line, int line_number) {
     // cout << "Linha não formatada: \"" << line << "\"" << endl;
 
+    // Tratamos \t como espaços
+    replace(line.begin(), line.end(), '\t', ' ');
+
     asm_line line_tokens;
     line_tokens.number = line_number;
+    line_tokens.opcode = -1;
     line_tokens.operation = "";
     line_tokens.operand[0] = "";
     line_tokens.operand[1] = "";
@@ -185,7 +191,7 @@ asm_line Scanner::break_line(string line, int line_number) {
             [](unsigned char c) { return toupper(c); }
         );
 
-        // cout << '[' << token << ']' << endl;
+        // cout << "\tToken: [" << token << ']' << endl;
         
         // Caso seja um rótulo
         // Erros de rótulo não são omitíveis pois podem alterar o funcionamento das diretivas

@@ -24,6 +24,8 @@ class TwoPassAlgorithm {
     TwoPassAlgorithm(bool verbose = false);
     // Adiciona os rótulos da linha na TS, e adiciona qulquer exceção encontrada no vetor
     void registerLabels(asm_line&, int, std::vector<MounterException>&);
+    // Imprime uma linha
+    void print_line(asm_line);
 };
 
 #endif

@@ -119,7 +119,7 @@ void OperationSupplier::eval_IF(vector<asm_line>::iterator& line_iterator, Prepr
 // DIRETIVAS NORMAIS
 
 void OperationSupplier::eval_SPACE(vector<asm_line>::iterator& line_iterator, int& line_number) {
-    asm_line expression = *line_iterator;
+    asm_line &expression = *line_iterator;
 
     expression.opcode = 0;
     line_number += 1;
@@ -133,7 +133,7 @@ void OperationSupplier::eval_SPACE(vector<asm_line>::iterator& line_iterator, in
 }
 
 void OperationSupplier::eval_CONST(vector<asm_line>::iterator& line_iterator, int& line_number) {
-    asm_line expression = *line_iterator;
+    asm_line &expression = *line_iterator;
 
     // Coloca um 0 preventivo, em caso de exceção
     expression.opcode = 0;
