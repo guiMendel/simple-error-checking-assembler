@@ -24,7 +24,7 @@ auto OperationSupplier::supply_instructions() -> map<string, int[2]> {
             line_number++;
 
             // Comentários
-            if (line[0 == '#']) continue;
+            if (line[0] == '#') continue;
             size_t opcode_mark = line.find(':');
             size_t size_mark = line.find('>');
 
