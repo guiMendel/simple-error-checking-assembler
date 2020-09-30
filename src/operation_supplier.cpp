@@ -78,9 +78,18 @@ void OperationSupplier::eval_EQU(vector<asm_line>::iterator& line_iterator, Prep
         value = stoi(line.operand[0]);
     }
     // Se o operando for outro rótulo, stoi() lançará uma exceção
-    catch (invalid_argument error) {
-        // Verifica se o rótulo foi definido anteriormente por outro EQU
-        value = pre_instance->resolve_synonym(line.operand[0]);
+    catch (...) {
+        // Aponta erro, não deveria receber um rótulo
+        string att;
+        for(auto it = synonym_table.cbegin(); it != synonym_table.cend(); ++it) {
+            att += it->first + ": " + to_string(it->second) + "\n";
+        }
+        att = (att == "" ? "Nenhuma registrada" : att.substr(0, att.length()-1));
+
+        const MounterException error (-1, "semântico",
+            "Rótulo \"" + line.operand[0] + "\" não foi atribuído por um EQU antes de ser utilizado por diretiva de pré-processamento.\nAtribuições:\n" + att
+        );
+        throw error;
     }
     if (verbose) {
         cout << "[" << __FILE__ << "]> Encontrado EQU. Definindo os rótulos ";
@@ -101,10 +110,20 @@ void OperationSupplier::eval_IF(vector<asm_line>::iterator& line_iterator, Prepr
         value = stoi(line.operand[0]);
     }
     // Se o operando for outro rótulo, stoi() lançará uma exceção
-    catch (invalid_argument error) {
-        // Verifica se o rótulo foi definido anteriormente por outro EQU
-        value = pre_instance->resolve_synonym(line.operand[0]);
-    }    
+    catch (...) {
+        map<string, int> &synonym_table = pre_instance->get_synonym_table();
+        // Aponta erro, não deveria receber um rótulo
+        string att;
+        for(auto it = synonym_table.cbegin(); it != synonym_table.cend(); ++it) {
+            att += it->first + ": " + to_string(it->second) + "\n";
+        }
+        att = (att == "" ? "Nenhuma registrada" : att.substr(0, att.length()-1));
+        
+        const MounterException error (-1, "semântico",
+            "Rótulo \"" + line.operand[0] + "\" não foi atribuído por um EQU antes de ser utilizado por diretiva de pré-processamento.\nAtribuições:\n" + att
+        );
+        throw error;
+    } 
     
     // Executa a regra de negócio
     if (value == 1) {

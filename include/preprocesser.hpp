@@ -22,8 +22,8 @@ class Preprocesser {
     public:
     const bool is_verbose() const {return verbose;}
     std::map<std::string, int>& get_synonym_table() {return synonym_table;}
-    // Tenta acessar o valor atribuído ao parametro pela tabela de sinônimos. Se não houver, lança uma exceção
-    int resolve_synonym(std::string synonym);
+    // Tenta acessar o valor atribuído ao parametro pela tabela de sinônimos. Retorna o ponteiro para a entrada na tabela se houver, nullptr se não houver
+    // void* resolve_synonym(std::string synonym);
     // Recebe um arquivo e cria um novo arquivo .PRE, com o código preprocessado
     void preprocess(std::string, bool print = false);
     // Construtor

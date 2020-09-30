@@ -186,6 +186,15 @@ asm_line Scanner::break_line(string line, int line_number) {
             }
         }
 
+        // Se já tiver lido todos os tokens possíveis (até os 2 operandos), é erro! Esse token não deveria existir
+        if (operand2_ok) {
+            ScannerException error (line_number, "sintático", NON_OMITABLE, line_tokens,
+                string("Token \"" + token + "\" inesperado")
+            );
+            exceptions.push_back(error);
+            break;
+        }
+
         // Tudo em caixa alta
         transform(token.begin(), token.end(), token.begin(), 
             [](unsigned char c) { return toupper(c); }
@@ -221,7 +230,6 @@ asm_line Scanner::break_line(string line, int line_number) {
                     string("Rótulo \"" + token + "\" é inválido")
                 );
                 exceptions.push_back(error);
-                continue;
             }
 
             line_tokens.labels.push_back(token);
@@ -242,7 +250,6 @@ asm_line Scanner::break_line(string line, int line_number) {
                     string("Operação \"" + token + "\" é inválida")
                 );
                 exceptions.push_back(error);
-                continue;
             }
 
             line_tokens.operation = token;
@@ -257,6 +264,10 @@ asm_line Scanner::break_line(string line, int line_number) {
                 comma_ok = true;
                 token.pop_back();
             }
+            // Se não, não deve haver um segundo operando
+            else {
+                operand2_ok = true;
+            }
 
             // Denuncia tokens inválidos
             if (regex_search(token, regex("[^A-Z0-9_]"))) {
@@ -266,7 +277,6 @@ asm_line Scanner::break_line(string line, int line_number) {
                     string("Operando \"" + token + "\" é inválido")
                 );
                 exceptions.push_back(error);
-                continue;
             }
 
             operand1_ok = true;
@@ -274,54 +284,54 @@ asm_line Scanner::break_line(string line, int line_number) {
             continue;
         }
 
-        // Verifica se o token tem uma vírgula no início
-        if (token[0] == ',') {
-            // Não pode ter mais de uma vírgula por linha
-            if (comma_ok) {
-                asm_line dummy_line;
-                dummy_line.operation = "";
-                ScannerException error (line_number, "sintático", OMITABLE, dummy_line,
-                    string("Mais de uma vírgula na linha")
-                );
-                exceptions.push_back(error);
-                continue;
-            };
+        // // Verifica se o token tem uma vírgula no início
+        // if (token[0] == ',') {
+        //     // Não pode ter mais de uma vírgula por linha
+        //     if (comma_ok) {
+        //         asm_line dummy_line;
+        //         dummy_line.operation = "";
+        //         ScannerException error (line_number, "sintático", OMITABLE, dummy_line,
+        //             string("Mais de uma vírgula na linha")
+        //         );
+        //         exceptions.push_back(error);
+        //         continue;
+        //     };
 
-            comma_ok = true;
-            // Se o operando já vier com a vírgula, tudo pronto
-            if (token.length() > 1) {
-                operand2_ok = true;
-                token = token.substr(1);
+        //     comma_ok = true;
+        //     // Se o operando já vier com a vírgula, tudo pronto
+        //     if (token.length() > 1) {
+        //         operand2_ok = true;
+        //         token = token.substr(1);
 
-                // Denuncia tokens inválidos
-                if (regex_search(token, regex("[^A-Z0-9_]"))) {
-                    asm_line dummy_line;
-                    dummy_line.operation = "";
-                    ScannerException error (line_number, "léxico", OMITABLE, dummy_line,
-                        string("Operando \"" + token + "\" é inválido")
-                    );
-                    exceptions.push_back(error);
-                    continue;
-                }
+        //         // Denuncia tokens inválidos
+        //         if (regex_search(token, regex("[^A-Z0-9_]"))) {
+        //             asm_line dummy_line;
+        //             dummy_line.operation = "";
+        //             ScannerException error (line_number, "léxico", OMITABLE, dummy_line,
+        //                 string("Operando \"" + token + "\" é inválido")
+        //             );
+        //             exceptions.push_back(error);
+        //             continue;
+        //         }
                 
-                line_tokens.operand[1] = token;
-                break;
-            }
-            continue;
-        }
+        //         line_tokens.operand[1] = token;
+        //         break;
+        //     }
+        //     continue;
+        // }
 
-        // Somente deve aceitar o segundo operando se tiver verificado uma vírgula
-        if (!comma_ok) {
-            asm_line dummy_line;
-            dummy_line.operation = "";
-            ScannerException error (line_number, "sintático", OMITABLE, dummy_line,
-                string("Operando \"" + token + "\" não veio separado por vírgula")
-            );
-            exceptions.push_back(error);
-            continue;
-        }
+        // // Somente deve aceitar o segundo operando se tiver verificado uma vírgula
+        // if (!comma_ok) {
+        //     asm_line dummy_line;
+        //     dummy_line.operation = "";
+        //     ScannerException error (line_number, "sintático", OMITABLE, dummy_line,
+        //         string("Operando \"" + token + "\" não veio separado por vírgula")
+        //     );
+        //     exceptions.push_back(error);
+        //     continue;
+        // }
 
-        // É o último operando: adicionamos ele e finalizamos
+        // É o último operando
         // Denuncia tokens inválidos
         if (regex_search(token, regex("[^A-Z0-9_]"))) {
             asm_line dummy_line;
@@ -330,11 +340,10 @@ asm_line Scanner::break_line(string line, int line_number) {
                 string("Operando \"" + token + "\" é inválido")
             );
             exceptions.push_back(error);
-            continue;
         }
         line_tokens.operand[1] = token;
         operand2_ok = true;
-        break;
+        // Agora temos que nos certificar de que o próximo token comece com um comentário
     }
 
     // Se tiver verificado um vírgula mas nenhum segundo operando, é erro

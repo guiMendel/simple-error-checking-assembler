@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -8,6 +9,8 @@
 #include "../include/preprocesser.hpp"
 #include "../include/mounter_exception.hpp"
 #include "../include/operation_supplier.hpp"
+
+#define NOT_EMPTY(thing) (!thing.empty())
 
 using namespace std;
 
@@ -20,22 +23,22 @@ Preprocesser::Preprocesser(bool verbose/* = false */) : verbose(verbose)  {
     pre_directive_table = supplier.supply_pre_directives();
 }
 
-int Preprocesser::resolve_synonym(string synonym) {
-    const auto synonym_entry = synonym_table.find(synonym);
-    if (synonym_entry == synonym_table.end()) {
-        string att = "";
-        for(auto it = synonym_table.cbegin(); it != synonym_table.cend(); ++it) {
-            att += it->first + ": " + to_string(it->second) + "\n";
-        }
-        att = (att == "" ? "Nenhuma registrada" : att.substr(0, att.length()-1));
+// void* Preprocesser::resolve_synonym(string synonym) {
+//     const auto synonym_entry = synonym_table.find(synonym);
+//     if (synonym_entry == synonym_table.end()) {
+//         string att = "";
+//         for(auto it = synonym_table.cbegin(); it != synonym_table.cend(); ++it) {
+//             att += it->first + ": " + to_string(it->second) + "\n";
+//         }
+//         att = (att == "" ? "Nenhuma registrada" : att.substr(0, att.length()-1));
         
-        const MounterException error (-1, "semântico",
-            "Rótulo \"" + synonym + "\" não foi atribuído por um EQU antes de ser utilizado por diretiva de pré-processamento.\nAtribuições:\n" + att
-        );
-        throw error;
-    }
-    return synonym_entry->second;
-}
+        // const MounterException error (-1, "semântico",
+        //     "Rótulo \"" + synonym + "\" não foi atribuído por um EQU antes de ser utilizado por diretiva de pré-processamento.\nAtribuições:\n" + att
+        // );
+        // throw error;
+//     }
+//     return synonym_entry->second;
+// }
 
 void Preprocesser::preprocess (string path, bool print/* = false */) {
     // O parâmtero solicita que o scanner não levante erros
@@ -45,9 +48,13 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
     // Gera a estrutura do programa
     vector<asm_line> lines = scanner.scan(path, error_log, print);
 
+    // Levanta erro se receber o tipo errado de arquivo
+    const size_t dot = path.find('.');
+    if (path.substr(dot) != ".asm"s) {
+        throw invalid_argument("Tipo de arquivo inválido. Por favor, forneça um arquivo .asm para o modo pré-processamento");
+    }
     // Define o nome do arquivo sem a extensão
-    const string pre_name = path.substr(0, path.find('.'));
-    const string pre_path = pre_name + ".pre";
+    const string pre_path = path.substr(0, dot) + ".pre";
     // Arquivo a ser construído
     fstream pre(pre_path, fstream::out);
 
@@ -99,12 +106,26 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
 }
 
 string Preprocesser::process_line(vector<asm_line>::iterator &line_iterator) {
-    const asm_line line = *line_iterator;
+    asm_line &line = *line_iterator;
 
     // cout << "Tabela de sinônimos:\n";
     // for(auto it = synonym_table.cbegin(); it != synonym_table.cend(); ++it) {
     //     cout << it->first << ": " << to_string(it->second) << endl;
     // }
+
+    // Substitui ocorrências de sinônimos pelos seus valores
+    if NOT_EMPTY(line.operand[0]) {
+        auto synonym_entry = synonym_table.find(line.operand[0]);
+        if (synonym_entry != synonym_table.end()) {
+            line.operand[0] = to_string(synonym_entry->second);
+        }
+    }
+    if NOT_EMPTY(line.operand[1]) {
+        auto synonym_entry = synonym_table.find(line.operand[1]);
+        if (synonym_entry != synonym_table.end()) {
+            line.operand[1] = to_string(synonym_entry->second);
+        }
+    }
 
     // Verifica a operação da linha contra as diretivas de préprocessamento
     const auto directive_entry = pre_directive_table.find(line.operation);

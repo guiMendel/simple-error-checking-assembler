@@ -33,9 +33,13 @@ void TwoPassAlgorithm::assemble(std::string path, bool print/* = false */) {
     // Gera a estrutura do programa
     vector<asm_line> lines = scanner.scan(path, error_log, print);
 
+    // Levanta erro se receber o tipo errado de arquivo
+    const size_t dot = path.find('.');
+    if (path.substr(dot) != ".pre"s) {
+        throw invalid_argument("Tipo de arquivo inválido. Por favor, forneça um arquivo .pre para o modo montagem");
+    }
     // Define o nome do arquivo sem a extensão
-    const string obj_name = path.substr(0, path.find('.'));
-    const string obj_path = obj_name + ".obj";
+    const string obj_path = path.substr(0, dot) + ".obj";
 
     // Arquivo a ser construído
     fstream obj(obj_path, fstream::out);
@@ -120,11 +124,12 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
             }
 
             // Certifica o uso correto dos parâmetros
-            int paramaters = (expression.operand[0].empty() ? 0 : 1) + (expression.operand[1].empty() ? 0 : 1);
-            int expected_paramteres = instruction_entry->second[1] - 1; // Tamanho da expressão - tamanho da operação
-            if (paramaters != expected_paramteres) {
+            int parameters = (expression.operand[0].empty() ? 0 : 1) + (expression.operand[1].empty() ? 0 : 1);
+            int expected_parameteres = instruction_entry->second[1] - 1; // Tamanho da expressão - tamanho da operação
+            if (parameters != expected_parameteres) {
                 exceptions.push_back(MounterException(expression.number, "sintático",
                     "Número de parâmetros incorreto para a operação " + expression.operation
+                    + ". Esperado: " + to_string(expected_parameteres) + ", verificado: " + to_string(parameters)
                 ));
             }
 
