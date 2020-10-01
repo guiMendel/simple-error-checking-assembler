@@ -61,12 +61,32 @@ void TwoPassAlgorithm::assemble(std::string path, bool print/* = false */) {
     }
 
     // Segunda passagem
-    // SEGUNDA PASSAGEM
+    string output;
+    try {
+        output = second_pass(lines);
+    }
+    catch (vector<MounterException> &errors) {
+        // Para cada erro
+        for (const MounterException error : errors) {
+            string intro = (error.get_line() == -1 ? "Erro " : "Na linha " + to_string(error.get_line()) + ", erro ");
+            error_log += intro + error.get_type() + ": " + error.what() + "\n";
+        }
+    }
 
     if ANY(error_log) {
+        // Destroi o arquivo vazio
+        remove(obj_path.c_str());
         throw MounterException(-1, "null",
             string(__FILE__) + ":" + to_string(__LINE__) + "> ERRO:\n" + error_log.substr(0, error_log.length()-1)
         );
+    }
+    else {
+        // Constroi o arquivo
+        fstream obj(obj_path);
+        if (!obj.is_open()) {
+            throw invalid_argument("Não foi possível abrir o arquivo recém-criado \"" + obj_path + "\"");
+        }
+        obj << output;
     }
 }
 
@@ -86,13 +106,15 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
         asm_line &expression = *line_iterator;
 
         // print_line(expression);
-        
-        // Se houver rótulos
-        if ANY(expression.labels) registerLabels(expression, current_line_number, exceptions);
 
         // Verificação de mudança de seção
         if (expression.operation == "SECTION") {
             string new_section = expression.operand[0];
+            
+            // Move seus rótulos para a linha seguinte
+            asm_line &next_line = *(line_iterator + 1);
+            next_line.labels.insert(next_line.labels.end(), expression.labels.begin(), expression.labels.end());
+            expression.labels.clear();
             
             // Valida a seção
             if (new_section == SECTION_TEXT) {
@@ -112,6 +134,9 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
             // cout << "-> Identificado como seção" << endl;
             continue;
         }
+        
+        // Se houver rótulos
+        if ANY(expression.labels) registerLabels(expression, current_line_number, exceptions);
 
         // Verifica a operação nas instruções
         auto instruction_entry = instruction_table.find(expression.operation);
@@ -202,6 +227,14 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
     // }
     // cout << "}" << endl;
 
+    if (verbose) {
+        cout << "Tabela de símbolos construída: {" << endl;
+        for VECTOR_ITERATOR(symbol_entry, symbol_table) {
+            cout << '\t' << symbol_entry->first << ": \"" << symbol_entry->second << "\"," << endl;
+        }
+        cout << "}" << endl;
+    }
+
     // Finalmente lança o batch de exceções
     if ANY(exceptions) {
         throw exceptions;
@@ -219,8 +252,8 @@ void TwoPassAlgorithm::registerLabels(asm_line &expression, int current_line_num
     for (const string label : expression.labels) {
         // Verifica a validez do rótulo
         if (
-            regex_search(label, regex("[^A-Z0-9_]")) ||
-            regex_match(label.substr(0,1), regex("[^A-Z_]"))
+            regex_search(label, regex("[^A-Z0-9_-]")) ||
+            regex_match(label.substr(0,1), regex("[^A-Z_-]"))
         ) {
             exceptions.push_back(MounterException(expression.number, "léxico",
                 string("Operando \"" + label + "\" é inválido")
@@ -243,6 +276,68 @@ void TwoPassAlgorithm::registerLabels(asm_line &expression, int current_line_num
     //     cout << symbol_iterator->first << ": " << symbol_iterator->second << endl;
     // }
     // cout << "Tamanho do tabela de símbolos depois: " << symbol_table.size() << "\nTamanho do grupo de rótulos recebido: " << expression.labels.size() << endl;
+}
+
+string TwoPassAlgorithm::second_pass(vector<asm_line> &expressions) {
+    string output = "";
+    // Coleta todas as exceções
+    vector<MounterException> exceptions;
+    // Para cada linha
+    for VECTOR_ITERATOR(expression_iterator, expressions) {
+        const asm_line expression = *expression_iterator;
+
+        output += to_string(expression.opcode) + " ";
+
+        // Se tiver operando 1
+        string label = expression.operand[0];
+        if (ANY(label)) {
+            auto symbol_entry = symbol_table.find(label);
+            if (symbol_entry == symbol_table.end()) {
+                // Verifica se é um número
+                try {
+                    stoi(label);
+                    // É um número
+                    exceptions.push_back(MounterException(expression.number, "sintático",
+                        "Operação \"" + expression.operation + "\" não aceita operandos imediatos, somente rótulos"
+                    ));
+                }
+                catch (...) {
+                    // Erro indica que não é numero
+                    exceptions.push_back(MounterException(expression.number, "semântico",
+                        "Rótulo \"" + label + "\" indefinido"
+                    ));
+                }
+            }
+            // Adiciona o operando ao codigo
+            else output += to_string(symbol_entry->second) + " ";
+        }
+        // Se tiver operando 2
+        label = expression.operand[1];
+        if (ANY(label)) {
+            auto symbol_entry = symbol_table.find(label);
+            if (symbol_entry == symbol_table.end()) {
+                // Verifica se é um número
+                try {
+                    stoi(label);
+                    // É um número
+                    exceptions.push_back(MounterException(expression.number, "sintático",
+                        "Operação \"" + expression.operation + "\" não aceita operandos imediatos, somente rótulos"
+                    ));
+                }
+                catch (...) {
+                    // Erro indica que não é numero
+                    exceptions.push_back(MounterException(expression.number, "semântico",
+                        "Rótulo \"" + label + "\" indefinido"
+                    ));
+                }
+            }
+            // Adiciona o operando ao codigo
+            else output += to_string(symbol_entry->second) + " ";
+        }
+    }
+    
+    if ANY(exceptions) throw exceptions;
+    return output;
 }
 
 void TwoPassAlgorithm::print_line(asm_line expression) {

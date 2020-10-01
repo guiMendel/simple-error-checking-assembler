@@ -16,6 +16,9 @@ class TwoPassAlgorithm {
 
     // Primeira passagem: recebe as linhas do programa e popula a tabela de símbolos
     void first_pass(std::vector<asm_line>&);
+    // Segunda passagem: recebe as linhas do programa e gera o uma string que será o conteúdo do arquivo final, pegando os opcodes e passando as labels pela tabela de símbolos
+    std::string second_pass(std::vector<asm_line>&);
+
 
     public:
     // Recebe um arquivo e cria um novo arquivo .OBJ, com o código montado

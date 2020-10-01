@@ -79,6 +79,13 @@ void OperationSupplier::eval_EQU(vector<asm_line>::iterator& line_iterator, Prep
     }
     // Se o operando for outro rótulo, stoi() lançará uma exceção
     catch (...) {
+        // Verifica se é que havia um operando
+        if (line.operand[0].empty()) {
+            const MounterException error (-1, "sintático",
+                "A diretiva EQU recebe exatamente um parâmetro"
+            );
+            throw error;
+        }
         // Aponta erro, não deveria receber um rótulo
         string att;
         for(auto it = synonym_table.cbegin(); it != synonym_table.cend(); ++it) {
@@ -96,12 +103,20 @@ void OperationSupplier::eval_EQU(vector<asm_line>::iterator& line_iterator, Prep
         for EVERY_LABEL_IN(line) cout << "\"" << label << "\" ";
         cout << " como " << value << "...";
     }
-    for EVERY_LABEL_IN(line) synonym_table[label] = value;
+    for EVERY_LABEL_IN(line) {
+        // Verifica por rótulos repetidos
+        if (synonym_table.find(label) != synonym_table.end()) {
+            throw MounterException(line.number, "semântico",
+                string("Redefinição do rótulo \"" + label + "\"")
+            );
+        }
+        synonym_table[label] = value;
+    }
     if (verbose) cout << "OK" << endl;
 }
 
 void OperationSupplier::eval_IF(vector<asm_line>::iterator& line_iterator, Preprocesser *pre_instance) {
-    const asm_line line = *line_iterator;
+    asm_line &line = *line_iterator;
     bool verbose = pre_instance->is_verbose();
 
     // Descobre o valor do operando
@@ -111,8 +126,16 @@ void OperationSupplier::eval_IF(vector<asm_line>::iterator& line_iterator, Prepr
     }
     // Se o operando for outro rótulo, stoi() lançará uma exceção
     catch (...) {
-        map<string, int> &synonym_table = pre_instance->get_synonym_table();
+        // Verifica se é que havia um operando
+        if (line.operand[0].empty()) {
+            const MounterException error (-1, "sintático",
+                "A diretiva IF recebe exatamente um parâmetro"
+            );
+            throw error;
+        }
+
         // Aponta erro, não deveria receber um rótulo
+        map<string, int> &synonym_table = pre_instance->get_synonym_table();
         string att;
         for(auto it = synonym_table.cbegin(); it != synonym_table.cend(); ++it) {
             att += it->first + ": " + to_string(it->second) + "\n";
@@ -132,7 +155,12 @@ void OperationSupplier::eval_IF(vector<asm_line>::iterator& line_iterator, Prepr
     else {
         if (verbose) cout << "[" << __FILE__ << "]> Encontrado IF avaliado falso. Pulando próxima linha" << endl;
         line_iterator++;
-    }    
+    }
+
+    // Move seus rótulos para a linha seguinte
+    asm_line &next_line = *(line_iterator + 1);
+    next_line.labels.insert(next_line.labels.end(), line.labels.begin(), line.labels.end());
+    line.labels.clear();
 }
 
 // DIRETIVAS NORMAIS
@@ -144,7 +172,7 @@ void OperationSupplier::eval_SPACE(vector<asm_line>::iterator& line_iterator, in
     line_number += 1;
 
     // Certifica o bom uso dos parâmetros
-    if (NOT_EMPTY(expression.operand[0]) || NOT_EMPTY(expression.operand[1])) {
+    if (NOT_EMPTY(expression.operand[0])) {
         throw MounterException(expression.number, "sintático",
             "A diretiva SPACE não recebe parâmetros"
         );
@@ -165,10 +193,13 @@ void OperationSupplier::eval_CONST(vector<asm_line>::iterator& line_iterator, in
         );
     }
 
+    string operand = expression.operand[0];
+    expression.operand[0] = "";
+
     // Insere a constante no espaço
     int constant;
     try {
-        constant = stoi(expression.operand[0]);
+        constant = stoi(operand);
     }
     catch (invalid_argument error) {
         throw MounterException(expression.number, "léxico",
