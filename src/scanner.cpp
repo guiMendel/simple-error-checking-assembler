@@ -31,7 +31,7 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
     // Vai receber cada uma das linhas brutas
     string line;
     // Armazena um rótulo que vier em linhas anteriores à sua operação
-    vector<string> stray_labels;
+    string stray_label;
     // Armazena a estrutura do programa
     vector<asm_line> program_lines;
     
@@ -52,14 +52,23 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
             // Se for uma linha com operação, já registramos
             if HAS_OPERATION(broken_line) {
                 // Verificamos se há um rótulo declarado anteriormente para essa operação
-                assign_labels(broken_line, stray_labels);
+                assign_label(broken_line, stray_label);
                 // Registra essa linha de código
                 program_lines.push_back(broken_line);
             }
             
-            // Se a linha só tiver rótulos, aplicamos eles na linha seguinte
-            else if ANY(broken_line.labels) {
-                stray_labels.insert(stray_labels.end(), broken_line.labels.begin(), broken_line.labels.end());
+            // Se a linha só tiver rótulo, aplicamos ele na linha seguinte
+            else if ANY(broken_line.label) {
+                // Se já tiver uma armazenada, é erro
+                if ANY(stray_label) {
+                    stray_label = broken_line.label;
+                    asm_line dummy_line;
+                    dummy_line.operation = "";
+                    throw ScannerException(broken_line.number, "semântico", NON_OMITABLE, dummy_line,
+                        string("Mais de um rótulo declarado para a mesma linha")
+                    );
+                }
+                stray_label = broken_line.label;
             }
         }
         catch (ScannerException &error) {
@@ -72,13 +81,25 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
             asm_line provisory_line = error.get_provisory_line();
             if ANY(provisory_line.operation) {
                 // Recebe o mesmo tratamento de rótulo
-                assign_labels(provisory_line, stray_labels);
+                try {
+                    assign_label(provisory_line, stray_label);
+                }
+                catch (ScannerException &error) {
+                    string intro = (error.get_line() == -1 ? "Erro " : "Na linha " + to_string(error.get_line()) + ", erro ");
+                    error_log += intro + error.get_type() + ": " + error.what() + "\n";
+                }
                 // Registra essa linha de código
                 program_lines.push_back(provisory_line);
             }
-            // Se a linha só tiver rótulos, aplicamos eles na linha seguinte
-            else if ANY(provisory_line.labels) {
-                stray_labels.insert(stray_labels.end(), provisory_line.labels.begin(), provisory_line.labels.end());
+            // Se a linha só tiver rótulo, aplicamos ele na linha seguinte
+            else if ANY(provisory_line.label) {
+                // Se já tiver uma armazenada, é erro
+                if ANY(stray_label) {
+                    stray_label = provisory_line.label;
+                    string intro = (provisory_line.number == -1 ? "Erro " : "Na linha " + to_string(provisory_line.number) + ", erro ");
+                    error_log += intro + "semântico: Mais de um rótulo declarado para a mesma linha\n";
+                }
+                stray_label = provisory_line.label;
             }
         }
         // Batch de exceções da mesma linha
@@ -86,11 +107,26 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
             // Já coloca a linha provisória no programa
             asm_line provisory_line = batch.at(0).get_provisory_line();
             if ANY(provisory_line.operation) {
+                // Recebe o mesmo tratamento de rótulo
+                try {
+                    assign_label(provisory_line, stray_label);
+                }
+                catch (ScannerException &error) {
+                    string intro = (error.get_line() == -1 ? "Erro " : "Na linha " + to_string(error.get_line()) + ", erro ");
+                    error_log += intro + error.get_type() + ": " + error.what() + "\n";
+                }
+                // Registra essa linha de código
                 program_lines.push_back(provisory_line);
             }
             // Se a linha só tiver rótulos, aplicamos eles na linha seguinte
-            else if ANY(provisory_line.labels) {
-                stray_labels.insert(stray_labels.end(), provisory_line.labels.begin(), provisory_line.labels.end());
+            else if ANY(provisory_line.label) {
+                // Se já tiver uma armazenada, é erro
+                if ANY(stray_label) {
+                    stray_label = provisory_line.label;
+                    string intro = (provisory_line.number == -1 ? "Erro " : "Na linha " + to_string(provisory_line.number) + ", erro ");
+                    error_log += intro + "semântico: Mais de um rótulo declarado para a mesma linha\n";
+                }
+                stray_label = provisory_line.label;
             }
 
             // Adiciona cada erro ao log
@@ -112,13 +148,7 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
         for (const asm_line line : program_lines) {
             cout << "\tLinha " << line.number << ": {";
             string output = "";
-            if ANY(line.labels) {
-                string aux = "labels: [";
-                for (const string label : line.labels) {
-                    aux += "\"" + label + "\", ";
-                }
-                output += aux.substr(0, aux.length()-2) + "], ";
-            }
+            if ANY(line.label) output += "label: \"" + line.label + "\", ";
             if HAS_OPERATION(line) output += "operation: \"" + line.operation + "\", ";
             if ANY(line.operand[0]) output += "operand1: \"" + line.operand[0] + "\", ";
             if ANY(line.operand[1]) output += "operand2: \"" + line.operand[1] + "\", ";
@@ -130,11 +160,18 @@ vector<asm_line> Scanner::scan (string source_path, string &error_log, bool prin
     return program_lines;
 }
 
-void Scanner::assign_labels(asm_line &line, vector<string> &stray_labels) {
+void Scanner::assign_label(asm_line &line, string &stray_label) {
     // Verificamos se há um rótulo declarado anteriormente para essa operação
-    if ANY(stray_labels) {
-        line.labels.insert(line.labels.end(), stray_labels.begin(), stray_labels.end());
-        stray_labels.clear();
+    if ANY(stray_label) {
+        bool had_label = ANY(line.label);
+        line.label = stray_label;
+        stray_label = "";
+        
+        if (had_label) {
+            throw ScannerException(line.number, "semântico", NON_OMITABLE, line,
+                string("Mais de um rótulo declarado para a mesma linha")
+            );
+        }
     }
 }
 
@@ -147,6 +184,7 @@ asm_line Scanner::break_line(string line, int line_number) {
     asm_line line_tokens;
     line_tokens.number = line_number;
     line_tokens.opcode = -1;
+    line_tokens.label = "";
     line_tokens.operation = "";
     line_tokens.operand[0] = "";
     line_tokens.operand[1] = "";
@@ -251,7 +289,8 @@ asm_line Scanner::break_line(string line, int line_number) {
                 token.pop_back();
             }
 
-            line_tokens.labels.push_back(token);
+            line_tokens.label = token;
+            label_ok = true;
             continue;
         }
         label_ok = true;
@@ -280,7 +319,7 @@ asm_line Scanner::break_line(string line, int line_number) {
         if (!operand1_ok) {
             // Verifica se o operando veio com uma vírgula ao final
             if (token[token.length() - 1] == ',') {
-                cout << "<" << token << ">" << endl;
+                // cout << "<" << token << ">" << endl;
                 // Verifica se veio só a vírgula
                 if (token[0] == ',') {
                     asm_line dummy_line;

@@ -4,7 +4,6 @@
 
 using namespace std;
 
-#define EVERY_LABEL_IN(line) (const string label : line.labels)
 #define NOT_EMPTY(thing) (!thing.empty())
 
 auto OperationSupplier::supply_instructions() -> map<string, int[2]> {
@@ -99,19 +98,15 @@ void OperationSupplier::eval_EQU(vector<asm_line>::iterator& line_iterator, Prep
         throw error;
     }
     if (verbose) {
-        cout << "[" << __FILE__ << "]> Encontrado EQU. Definindo os rótulos ";
-        for EVERY_LABEL_IN(line) cout << "\"" << label << "\" ";
-        cout << " como " << value << "...";
+        cout << "[" << __FILE__ << "]> Encontrado EQU. Definindo o rótulo \"" + line.label + "\" como " << value << "...";
     }
-    for EVERY_LABEL_IN(line) {
-        // Verifica por rótulos repetidos
-        if (synonym_table.find(label) != synonym_table.end()) {
-            throw MounterException(line.number, "semântico",
-                string("Redefinição do rótulo \"" + label + "\"")
-            );
-        }
-        synonym_table[label] = value;
+    // Verifica por rótulos repetidos
+    if (synonym_table.find(line.label) != synonym_table.end()) {
+        throw MounterException(line.number, "semântico",
+            string("Redefinição do rótulo \"" + line.label + "\"")
+        );
     }
+    synonym_table[line.label] = value;
     if (verbose) cout << "OK" << endl;
 }
 
@@ -157,10 +152,13 @@ void OperationSupplier::eval_IF(vector<asm_line>::iterator& line_iterator, Prepr
         line_iterator++;
     }
 
-    // Move seus rótulos para a linha seguinte
-    asm_line &next_line = *(line_iterator + 1);
-    next_line.labels.insert(next_line.labels.end(), line.labels.begin(), line.labels.end());
-    line.labels.clear();
+    // Se tiver rótulo é erro
+    if NOT_EMPTY(line.label) {
+        throw MounterException(line.number, "sintático"s,
+            "Rótulos são proibidos para a diretiva IF"s
+        );
+    }
+    line.label = "";
 }
 
 // DIRETIVAS NORMAIS

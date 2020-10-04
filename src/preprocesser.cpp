@@ -66,12 +66,14 @@ void Preprocesser::preprocess (string path, bool print/* = false */) {
     string output_lines = "";
 
     // Passa por cada linha
-    for (auto line_iterator = lines.begin(); line_iterator != lines.end(); line_iterator++) {
+    for (auto line_iterator = lines.begin(); line_iterator != lines.end(); line_iterator == lines.end() ? line_iterator : line_iterator++) {
         try {
+            // cout << "Processando linha " << line_iterator->number << endl;
             const string new_line = process_line(line_iterator);
             output_lines += (new_line.empty() ? "" : new_line + "\n");
         }
         catch (MounterException error) {
+            cout << "Erro na linha " << line_iterator->number << " (" << error.what() << ")" << endl;
             // Coleta informações sobre o erro
             const int line = (error.get_line() == -1 ? line_iterator->number : error.get_line());
 
@@ -139,13 +141,9 @@ string Preprocesser::process_line(vector<asm_line>::iterator &line_iterator) {
     }
     
     // Imprime a linha no arquivo final
-    string labels;
-    for (const string label : line.labels) {
-        labels += label + ":\n";
-    }
-    labels += "    ";
+    string label = NOT_EMPTY(line.label) ? line.label + "\n    " : "    ";
     const string operation = line.operation;
     const string operands = line.operand[0] != "" ? (" " + line.operand[0] + (line.operand[1] != "" ? ", " + line.operand[1] : "")) : "";
-    const string assembled_line = labels + operation + operands;
+    const string assembled_line = label + operation + operands;
     return assembled_line;
 }

@@ -110,11 +110,24 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
         // Verificação de mudança de seção
         if (expression.operation == "SECTION") {
             string new_section = expression.operand[0];
+
+            // Garante que não seja a última linha
+            if (line_iterator + 1 == lines.end()) {
+                exceptions.push_back(MounterException(expression.number, "semântico"s,
+                    "Seção no final do documento"s
+                ));
+                break;
+            }
             
             // Move seus rótulos para a linha seguinte
             asm_line &next_line = *(line_iterator + 1);
-            next_line.labels.insert(next_line.labels.end(), expression.labels.begin(), expression.labels.end());
-            expression.labels.clear();
+            if ANY(next_line.label) {
+                exceptions.push_back(MounterException(expression.number, "semântico"s,
+                    "Seção tem rótulo que não pode ser passado para a linha seguinte"s
+                ));
+            }
+            next_line.label = expression.label;
+            expression.label = "";
             
             // Valida a seção
             if (new_section == SECTION_TEXT) {
@@ -135,8 +148,8 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
             continue;
         }
         
-        // Se houver rótulos
-        if ANY(expression.labels) registerLabels(expression, current_line_number, exceptions);
+        // Se houver rótulo
+        if ANY(expression.label) registerLabel(expression, current_line_number, exceptions);
 
         // Verifica a operação nas instruções
         auto instruction_entry = instruction_table.find(expression.operation);
@@ -241,7 +254,7 @@ void TwoPassAlgorithm::first_pass(vector<asm_line> &lines) {
     }
 }
 
-void TwoPassAlgorithm::registerLabels(asm_line &expression, int current_line_number, vector<MounterException> &exceptions) {
+void TwoPassAlgorithm::registerLabel(asm_line &expression, int current_line_number, vector<MounterException> &exceptions) {
     // cout << "Tamanho do tabela de símbolos antes: " << symbol_table.size() << endl;
     // cout << "Registrando os seguintes rótulos com o valor " << to_string(current_line_number) << ":";
     // for (const string label : expression.labels) {
@@ -249,28 +262,27 @@ void TwoPassAlgorithm::registerLabels(asm_line &expression, int current_line_num
     // }
     // cout << endl;
     
-    for (const string label : expression.labels) {
-        // Verifica a validez do rótulo
-        if (
-            regex_search(label, regex("[^A-Z0-9_-]")) ||
-            regex_match(label.substr(0,1), regex("[^A-Z_-]"))
-        ) {
-            exceptions.push_back(MounterException(expression.number, "léxico",
-                string("Operando \"" + label + "\" é inválido")
-            ));
-        }
-        // Adicionamos à tabela de símbolos, ainda que seja inválido
-        // Primeiro verificamos se já tem uma entrada deste rótulo na TS
-        if LABEL_ALREADY_DEFINED(label) {
-            exceptions.push_back(MounterException(expression.number, "semântico",
-                string("Redefinição do rótulo \"" + label + "\". Definição anterior na linha " + to_string(symbol_table[label]))
-            ));
-            // Fica com a última definição, então prosseguimos
-        }
-        symbol_table[label] = current_line_number;        
+    string label = expression.label;
+    // Verifica a validez do rótulo
+    if (
+        regex_search(label, regex("[^A-Z0-9_-]")) ||
+        regex_match(label.substr(0,1), regex("[^A-Z_-]"))
+    ) {
+        exceptions.push_back(MounterException(expression.number, "léxico",
+            string("Rótulo \"" + label + "\" é inválido")
+        ));
     }
+    // Adicionamos à tabela de símbolos, ainda que seja inválido
+    // Primeiro verificamos se já tem uma entrada deste rótulo na TS
+    if LABEL_ALREADY_DEFINED(label) {
+        exceptions.push_back(MounterException(expression.number, "semântico",
+            string("Redefinição do rótulo \"" + label + "\". Definição anterior na linha " + to_string(symbol_table[label]))
+        ));
+        // Fica com a última definição, então prosseguimos
+    }
+    symbol_table[label] = current_line_number;        
     // Não precisamos mais disso, liberamos a memória
-    expression.labels.clear();
+    expression.label = "";
     // cout << "Nova tabela de símbolos:" << endl;
     // for VECTOR_ITERATOR(symbol_iterator, symbol_table) {
     //     cout << symbol_iterator->first << ": " << symbol_iterator->second << endl;
@@ -344,13 +356,7 @@ void TwoPassAlgorithm::print_line(asm_line expression) {
     cout << "Linha " << expression.number << ": {";
     string output = "";
     output += "opcode: \"" + to_string(expression.opcode) + "\", ";
-    if ANY(expression.labels) {
-        string aux = "labels: [";
-        for (const string label : expression.labels) {
-            aux += "\"" + label + "\", ";
-        }
-        output += aux.substr(0, aux.length()-2) + "], ";
-    }
+    if ANY(expression.label) output += "label: \"" + expression.label + "\", ";
     if ANY(expression.operation) output += "operation: \"" + expression.operation + "\", ";
     if ANY(expression.operand[0]) output += "operand1: \"" + expression.operand[0] + "\", ";
     if ANY(expression.operand[1]) output += "operand2: \"" + expression.operand[1] + "\", ";

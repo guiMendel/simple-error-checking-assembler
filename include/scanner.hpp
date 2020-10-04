@@ -9,7 +9,8 @@
 struct asm_line {
     // Indica qual a linha no arquivo fonte .asm
     int number;
-    std::vector<std::string> labels;
+    // std::vector<std::string> labels;
+    std::string label;
     std::string operation;
     std::string operand[2];
     // // Indica qual será a linha no arquivo final .obj
@@ -49,7 +50,7 @@ class Scanner {
     // Recebe um arquivo e retorna a estrutura do programa. Recebe uma opção de imprimir a estrutura resultante ou não. Recebe uma referência string na qual imprime todos os erros encontrados.
     std::vector<asm_line> scan(std::string, std::string&, bool print = false);
     // Recebe uma linha e um vetor de rótulos, e encaixa os rótulos na linha.
-    void assign_labels(asm_line&, std::vector<std::string>&);
+    void assign_label(asm_line&, std::string&);
 };
 
 #endif
